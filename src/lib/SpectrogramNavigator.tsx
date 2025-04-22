@@ -167,14 +167,14 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
             width={startTime}
             y="0"
             height="100"
-            style={{ fill: "white", opacity: 0.5 }}
+            style={{ fill: "white", opacity: 0.2 }}
           />
           <rect
             x={endTime}
             width={duration - endTime}
             y="0"
             height="100"
-            style={{ fill: "white", opacity: 0.5 }}
+            style={{ fill: "white", opacity: 0.2 }}
           />
           {draggingToZoom && dragEnd > dragStart && (
             <rect
@@ -182,7 +182,7 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
               width={dragEnd - dragStart}
               y="0"
               height="100"
-              style={{ fill: "red", opacity: 0.5 }}
+              style={{ fill: "white", opacity: 0.2 }}
             />
           )}
         </svg>

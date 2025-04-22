@@ -187,6 +187,11 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   };
 
+  // Determine the number of columns needed for the mode grid based on the number of options
+  const playheadModes = ["page", "stop", "loop", "continue", "scroll", "scrub"];
+  const gridColumns = playheadModes.length > 5 ? 3 : (playheadModes.length > 2 ? 2 : 1);
+  const gridRows = Math.ceil(playheadModes.length / gridColumns);
+
   return (
     <PlaybackContext.Provider
       value={{
@@ -278,8 +283,9 @@ function PlaybackProvider(props: PlaybackProviderProps) {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
-                gridTemplateRows: "1fr",
+                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
+                gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+                gap: 3,
               }}
             >
               <div
@@ -321,6 +327,15 @@ function PlaybackProvider(props: PlaybackProviderProps) {
                 }}
               >
                 Scroll
+              </div>
+              <div
+                className={`gridcell ${theme} ${mode === "scrub" && "selected"}`}
+                onClick={() => {
+                  setMode("scrub");
+                }}
+                title="Keeps the playhead fixed in the center with the audio scrolling underneath - best for reducing motion sickness"
+              >
+                Scrub
               </div>
             </div>
           </div>

@@ -29,14 +29,14 @@ function App() {
         settings={true}
         navigator={true}
         playbackSpeedInitial={1.0}
-        playheadModeInitial="scroll"
+        playheadModeInitial="scrub"
+        playheadWidth={0.0010}
+        playheadColor="black"
         specHeight={500}
-        navHeight={80}
-        colormap="magma"
+        navHeight={50}
+        colormap="inferno"
         transparent={true}
         dark={true}
-        playheadColor="black"
-        playheadWidth={0.0010}
       />
     </div>
   );

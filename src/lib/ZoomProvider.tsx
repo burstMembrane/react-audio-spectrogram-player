@@ -47,6 +47,7 @@ function ZoomProvider(props: ZoomProviderProps) {
   const { duration, currentTime, mode, pause, setCurrentTime } = usePlayback();
   const [startTime, setStartTime] = useState(startTimeInitial ?? 0);
   const [endTime, setEndTime] = useState(endTimeInitial ?? duration ?? 1);
+  const [previousTime, setPreviousTime] = useState(currentTime);
 
   useEffect(() => {
     if (duration !== null) {
@@ -59,11 +60,38 @@ function ZoomProvider(props: ZoomProviderProps) {
   const zoomedDuration = endTime - startTime;
 
   const setCenterTime = (centerTime: number) => {
-    setStartTime(centerTime - zoomedDuration / 2);
-    setEndTime(centerTime + zoomedDuration / 2);
+    if (duration === null) return;
+
+    // Calculate half the view width
+    const halfZoomedDuration = zoomedDuration / 2;
+
+    // Ensure we don't go out of bounds
+    let newStartTime = Math.max(0, centerTime - halfZoomedDuration);
+    let newEndTime = Math.min(duration, centerTime + halfZoomedDuration);
+
+    // Adjust if we hit the boundaries
+    if (newStartTime <= 0) {
+      newEndTime = Math.min(duration, zoomedDuration);
+    }
+    if (newEndTime >= duration) {
+      newStartTime = Math.max(0, duration - zoomedDuration);
+    }
+
+    setStartTime(newStartTime);
+    setEndTime(newEndTime);
   };
 
+  // Handle time changes (including scrubbing)
   useEffect(() => {
+    // Skip if there's no change in time or we're not zoomed
+    if (currentTime === previousTime) {
+      setPreviousTime(currentTime);
+      return;
+    }
+
+    // Keep track of time changes for next update
+    setPreviousTime(currentTime);
+
     if (mode === "stop") {
       if (currentTime >= endTime && currentTime <= endTime + 0.1) {
         pause();
@@ -124,8 +152,33 @@ function ZoomProvider(props: ZoomProviderProps) {
         setStartTime(Math.max(0, startTime - offset));
         setEndTime(endTime - offset);
       }
+    } else if (mode === "scrub") {
+      // True scrubbing mode: always keep playhead exactly in the center
+      // This creates a completely fixed playhead with the spectrogram scrolling underneath
+      if (duration === null) return;
+
+      // Calculate the exact center position for the current zoom level
+      const halfZoomedDuration = zoomedDuration / 2;
+
+      // Calculate time values for the view window with playhead at center
+      let newStartTime = Math.max(0, currentTime - halfZoomedDuration);
+      let newEndTime = Math.min(duration, currentTime + halfZoomedDuration);
+
+      // Handle edge cases when near the beginning or end of the audio
+      if (newStartTime <= 0) {
+        newStartTime = 0;
+        newEndTime = Math.min(duration, zoomedDuration);
+      }
+      if (newEndTime >= duration) {
+        newEndTime = duration;
+        newStartTime = Math.max(0, duration - zoomedDuration);
+      }
+
+      // Update the view window to keep playhead centered
+      setStartTime(newStartTime);
+      setEndTime(newEndTime);
     } else if (mode === "continue") {
-      // do nothings
+      // do nothing
     }
   }, [currentTime, mode]);
 
