@@ -28,10 +28,10 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   playbackRate: 1.0,
   mode: "page",
   sampleRate: 16000,
-  setDuration: () => {},
-  setCurrentTime: () => {},
-  setPlaybackRate: () => {},
-  pause: () => {},
+  setDuration: () => { },
+  setCurrentTime: () => { },
+  setPlaybackRate: () => { },
+  pause: () => { },
   audioSamples: new Float32Array(0),
 });
 
@@ -132,8 +132,8 @@ function PlaybackProvider(props: PlaybackProviderProps) {
       const arrayBuffer = await response.arrayBuffer();
       const audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)({
-        sampleRate: sampleRateState,
-      });
+          sampleRate: sampleRateState,
+        });
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       const samples = audioBuffer.getChannelData(0);
       setAudioSamples(samples);
@@ -278,7 +278,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
                 gridTemplateRows: "1fr",
               }}
             >
@@ -313,6 +313,14 @@ function PlaybackProvider(props: PlaybackProviderProps) {
                 }}
               >
                 Continue
+              </div>
+              <div
+                className={`gridcell ${theme} ${mode === "scroll" && "selected"}`}
+                onClick={() => {
+                  setMode("scroll");
+                }}
+              >
+                Scroll
               </div>
             </div>
           </div>

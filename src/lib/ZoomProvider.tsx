@@ -25,11 +25,11 @@ export const ZoomContext = createContext<ZoomContextType>({
   endTime: 1,
   zoomedDuration: 1,
   isZoomed: false,
-  setStartTime: () => {},
-  setEndTime: () => {},
-  setCenterTime: () => {},
-  zoomIn: () => {},
-  zoomOut: () => {},
+  setStartTime: () => { },
+  setEndTime: () => { },
+  setCenterTime: () => { },
+  zoomIn: () => { },
+  zoomOut: () => { },
 });
 
 export function useZoom() {
@@ -106,6 +106,23 @@ function ZoomProvider(props: ZoomProviderProps) {
         const newEndTime = startTime;
         setStartTime(newStartTime);
         setEndTime(newEndTime);
+      }
+    } else if (mode === "scroll") {
+      // Keep the playhead centered or when it approaches the edge, scroll with it
+      const bufferPercentage = 0.25; // Buffer zone at the edges (25% of view width)
+      const bufferWidth = zoomedDuration * bufferPercentage;
+
+      // Check if playhead is approaching right edge
+      if (currentTime > endTime - bufferWidth) {
+        const offset = Math.min(bufferWidth, currentTime - (endTime - bufferWidth));
+        setStartTime(startTime + offset);
+        setEndTime(endTime + offset);
+      }
+      // Check if playhead is approaching left edge
+      else if (currentTime < startTime + bufferWidth) {
+        const offset = Math.min(bufferWidth, (startTime + bufferWidth) - currentTime);
+        setStartTime(Math.max(0, startTime - offset));
+        setEndTime(endTime - offset);
       }
     } else if (mode === "continue") {
       // do nothings
