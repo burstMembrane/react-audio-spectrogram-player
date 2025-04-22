@@ -27,6 +27,8 @@ interface SpectrogramPlayerProps {
   colormap?: string;
   transparent?: boolean;
   dark?: boolean;
+  playheadColor?: string;
+  playheadWidth?: number;
 }
 
 const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
@@ -47,12 +49,14 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
     startTimeInitial = undefined,
     endTimeInitial = undefined,
     playbackSpeedInitial = 1.0,
-    playheadModeInitial = "page",
+    playheadModeInitial = "scroll",
     specHeight = 200,
     navHeight = 50,
     colormap = "viridis",
     transparent = false,
     dark = false,
+    playheadColor = "white",
+    playheadWidth = 0.005,
   } = props;
 
   return (
@@ -83,6 +87,8 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
             specHeight={specHeight}
             colormap={colormap}
             transparent={transparent}
+            playheadColor={playheadColor}
+            playheadWidth={playheadWidth}
           />
         </PlaybackProvider>
       </ThemeProvider>

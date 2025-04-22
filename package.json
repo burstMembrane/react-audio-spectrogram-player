@@ -47,6 +47,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "^4.4.1",
     "colormap": "^2.3.2",
+    "lucide-react": "^0.503.0",
     "rust-melspec-wasm": "^0.1.0-alpha.1"
   },
   "devDependencies": {

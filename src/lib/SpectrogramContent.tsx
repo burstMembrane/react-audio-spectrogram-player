@@ -4,10 +4,12 @@ import { useZoom } from "./ZoomProvider";
 
 interface SpectrogramContentProps {
   dataURL: string;
+  playheadColor?: string;
+  playheadWidth?: number;
 }
 
 function SpectrogramContent(props: SpectrogramContentProps) {
-  const { dataURL } = props;
+  const { dataURL, playheadColor, playheadWidth } = props;
   const playheadRef = useRef<SVGLineElement>(null);
 
   const { duration, currentTime } = usePlayback();
@@ -30,8 +32,8 @@ function SpectrogramContent(props: SpectrogramContentProps) {
       />
       <line
         ref={playheadRef}
-        stroke="red"
-        strokeWidth={0.005 * zoomedDuration}
+        stroke={playheadColor || "red"}
+        strokeWidth={(playheadWidth || 0.0010) * zoomedDuration}
         x1={currentTime}
         x2={currentTime}
         y1={0}

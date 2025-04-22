@@ -50,6 +50,8 @@ interface SpectrogramGraphicsProps {
   navHeight?: number;
   colormap: string;
   transparent: boolean;
+  playheadColor?: string;
+  playheadWidth?: number;
 }
 
 function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
@@ -70,6 +72,8 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     navHeight = 50,
     colormap = "viridis",
     transparent = false,
+    playheadColor = "red",
+    playheadWidth = 0.005,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dataURL, setDataURL] = useState<string>("");
@@ -169,7 +173,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     }
   }, [imageData, canvasRef]);
 
-  const spectrogramContent = <SpectrogramContent dataURL={dataURL} />;
+  const spectrogramContent = <SpectrogramContent dataURL={dataURL} playheadColor={playheadColor} playheadWidth={playheadWidth} />;
 
   return (
     <>

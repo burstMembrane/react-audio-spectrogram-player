@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { usePlayback } from "./PlaybackProvider";
 import { useTheme } from "./ThemeProvider";
 import { useZoom } from "./ZoomProvider";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 interface SpectrogramNavigatorProps {
   children: JSX.Element;
@@ -28,7 +29,11 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragEnd, setDragEnd] = useState<number | null>(null);
   const { dark } = useTheme();
-  const theme = dark ? "dark" : "light";
+
+  // Add hover states for buttons
+  const [zoomInHover, setZoomInHover] = useState(false);
+  const [zoomOutHover, setZoomOutHover] = useState(false);
+  const [showControls, setShowControls] = useState(false);
 
   const draggingToZoom = !isZoomed && dragStart && dragEnd;
   const draggingToPan = isZoomed && dragStart;
@@ -82,11 +87,68 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
 
   const placeholder_svg = <svg width="100%" height={height} />;
 
+  // Define common styles for the icon buttons
+  const iconButtonStyle: React.CSSProperties = {
+    position: 'absolute',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '22px',
+    height: '22px',
+    cursor: 'pointer',
+    background: 'transparent',
+    border: 'none',
+    color: dark ? 'white' : 'black',
+    transition: 'all 0.2s ease',
+    zIndex: 10,
+    opacity: showControls ? 0.9 : 0.3,
+    padding: 0,
+  };
+
+  // Position buttons in a vertical column on the left
+  const zoomInButtonStyle = {
+    ...iconButtonStyle,
+    left: '8px',
+    top: '8px',
+    transform: zoomInHover ? 'scale(1.2)' : 'scale(1)',
+    opacity: zoomInHover ? 1 : (showControls ? 0.9 : 0.3),
+  };
+
+  const zoomOutButtonStyle = {
+    ...iconButtonStyle,
+    left: '8px',
+    top: '34px',
+    transform: zoomOutHover ? 'scale(1.2)' : 'scale(1)',
+    opacity: zoomOutHover ? 1 : (showControls ? 0.9 : 0.3),
+  };
+
+  const containerStyle: React.CSSProperties = {
+    position: 'relative',
+    display: "flex",
+    flexDirection: "row",
+    width: '100%',
+  };
+
+  // Add a control container for buttons
+  const controlsContainerStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '8px',
+    top: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    zIndex: 10,
+    opacity: showControls ? 0.9 : 0.3,
+    transition: 'opacity 0.2s ease',
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "row", gap: 5 }}>
-      <button className={theme} onClick={zoomOut} title="Zoom Out (-)" aria-label="Zoom Out (press minus key)">
-        Zoom Out
-      </button>
+    <div
+      style={containerStyle}
+      onMouseEnter={() => setShowControls(true)}
+      onMouseLeave={() => setShowControls(false)}
+    >
       {duration ? (
         <svg
           ref={svgRef}
@@ -127,15 +189,43 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
       ) : (
         placeholder_svg
       )}
-      <button
-        className={theme}
-        style={{ fontFamily: "monospace" }}
-        onClick={zoomIn}
-        title="Zoom In (+)"
-        aria-label="Zoom In (press plus key)"
-      >
-        Zoom In
-      </button>
+
+      {/* Controls container with buttons in a column */}
+      <div style={controlsContainerStyle}>
+        {/* Zoom In button (top) */}
+        <button
+          onClick={zoomIn}
+          title="Zoom In (+)"
+          aria-label="Zoom In (press plus key)"
+          style={{
+            ...iconButtonStyle,
+            position: 'static',
+            transform: zoomInHover ? 'scale(1.2)' : 'scale(1)',
+            opacity: zoomInHover ? 1 : 0.9,
+          }}
+          onMouseEnter={() => setZoomInHover(true)}
+          onMouseLeave={() => setZoomInHover(false)}
+        >
+          <ZoomIn size={14} strokeWidth={2} />
+        </button>
+
+        {/* Zoom Out button (bottom) */}
+        <button
+          onClick={zoomOut}
+          title="Zoom Out (-)"
+          aria-label="Zoom Out (press minus key)"
+          style={{
+            ...iconButtonStyle,
+            position: 'static',
+            transform: zoomOutHover ? 'scale(1.2)' : 'scale(1)',
+            opacity: zoomOutHover ? 1 : 0.9,
+          }}
+          onMouseEnter={() => setZoomOutHover(true)}
+          onMouseLeave={() => setZoomOutHover(false)}
+        >
+          <ZoomOut size={14} strokeWidth={2} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -31,10 +31,12 @@ function App() {
         playbackSpeedInitial={1.0}
         playheadModeInitial="scroll"
         specHeight={500}
-        navHeight={30}
-        colormap="inferno"
+        navHeight={80}
+        colormap="magma"
         transparent={true}
         dark={true}
+        playheadColor="black"
+        playheadWidth={0.0010}
       />
     </div>
   );
