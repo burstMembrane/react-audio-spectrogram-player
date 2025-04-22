@@ -213,8 +213,16 @@ function PlaybackProvider(props: PlaybackProviderProps) {
           display: "flex",
           flexDirection: "column",
           alignItems: "stretch",
-          gap: 5,
-          marginTop: 5,
+          gap: 8,
+          marginTop: 10,
+          borderRadius: 8,
+          overflow: "hidden",
+          backgroundColor: dark ? "rgba(30, 30, 35, 0.7)" : "rgba(245, 245, 250, 0.7)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          boxShadow: dark
+            ? "0 4px 12px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1)"
+            : "0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)"
         }}
       >
         <div
@@ -222,121 +230,254 @@ function PlaybackProvider(props: PlaybackProviderProps) {
             width: "100%",
             display: "flex",
             flexDirection: "row",
-            alignItems: "stretch",
-            gap: 5,
+            alignItems: "center",
+            gap: 8,
+            padding: 12,
           }}
         >
-          <audio
-            ref={audioRef}
-            controls
-            style={{ width: "100%" }}
-            onTimeUpdate={onTimeUpdate}
-            onDurationChange={onDurationChange}
-            onRateChange={onRateChange}
-            controlsList="nodownload"
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              position: "relative",
+              height: 36,
+              borderRadius: 6,
+              overflow: "hidden",
+              backgroundColor: dark ? "rgba(20, 20, 25, 0.4)" : "rgba(230, 230, 235, 0.4)",
+              padding: "0 2px",
+            }}
           >
-            <source src={src} />
-          </audio>
+            <audio
+              ref={audioRef}
+              style={{
+                position: "absolute",
+                opacity: 0, // Hide the audio element visually
+                width: "100%",
+                height: "100%",
+              }}
+              onTimeUpdate={onTimeUpdate}
+              onDurationChange={onDurationChange}
+              onRateChange={onRateChange}
+              controlsList="nodownload"
+            >
+              <source src={src} />
+            </audio>
+
+            {/* Custom audio controls */}
+            <button
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                margin: "2px 4px",
+                borderRadius: 5,
+                backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+                color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
+                transition: "background-color 0.15s ease",
+              }}
+              onClick={() => {
+                if (audioRef.current) {
+                  if (audioRef.current.paused) {
+                    audioRef.current.play();
+                  } else {
+                    audioRef.current.pause();
+                  }
+                }
+              }}
+            >
+              {audioRef.current && !audioRef.current.paused ? (
+                // Pause icon
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              ) : (
+                // Play icon
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none" />
+                </svg>
+              )}
+            </button>
+
+            {/* Time display */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              marginLeft: 4,
+              fontSize: 12,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+              minWidth: 80,
+            }}>
+              {duration ? (
+                `${formatTime(currentTime)} / ${formatTime(duration)}`
+              ) : "0:00 / 0:00"}
+            </div>
+
+            {/* Time slider */}
+            <div style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 8px",
+            }}>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={currentTime}
+                step="0.01"
+                style={{
+                  width: "100%",
+                  height: 4,
+                  borderRadius: 2,
+                  appearance: "none",
+                  backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+                  outline: "none",
+                  transition: "height 0.15s ease",
+                  cursor: "pointer",
+                }}
+                onChange={(e) => {
+                  const time = parseFloat(e.target.value);
+                  setCurrentTime(time);
+                }}
+              />
+            </div>
+
+            {/* Playback rate display */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              fontSize: 12,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+              marginRight: 4,
+            }}>
+              {`${playbackRate.toFixed(1)}x`}
+            </div>
+          </div>
+
           {settings && (
             <button
-              className={theme}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 36,
+                height: 36,
+                borderRadius: 6,
+                backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+                color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
+                transition: "background-color 0.15s ease",
+              }}
               onClick={() => {
                 setShowSettingsPanel(!showSettingsPanel);
               }}
             >
-              Settings
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
             </button>
           )}
         </div>
+
         {settings && showSettingsPanel && (
           <div
             style={{
               display: "grid",
-              flexDirection: "row",
-              fontFamily: "monospace",
               gridTemplateColumns: "1fr 3fr",
-              columnGap: 5,
-              rowGap: 5,
+              columnGap: 8,
+              rowGap: 8,
+              padding: "5px 12px 12px 12px",
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              fontSize: 13,
+              backgroundColor: dark ? "rgba(20, 20, 25, 0.3)" : "rgba(230, 230, 235, 0.3)",
+              borderTop: dark ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 0, 0, 0.05)",
             }}
           >
-            <div className={`gridcell header ${theme}`}>{"Playback Speed"}</div>
-            <div style={{ display: "flex", flexDirection: "row", gap: 5 }}>
-              <div className={`slidecontainer ${theme}`}>
-                <div
-                  className={`slidervalue ${theme}`}
-                >{`${playbackRate.toFixed(1)}x`}</div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="2.0"
-                  value={playbackRate}
-                  className={`slider ${theme}`}
-                  id="myRange"
-                  step="0.1"
-                  onChange={(e) => {
-                    setPlaybackRate(Number(e.target.value));
-                  }}
-                />
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
+              fontWeight: 500
+            }}>
+              Playback Speed
+            </div>
+            <div style={{ display: "flex", flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <input
+                type="range"
+                min="0.1"
+                max="2.0"
+                value={playbackRate}
+                step="0.1"
+                style={{
+                  flex: 1,
+                  height: 4,
+                  borderRadius: 2,
+                  appearance: "none",
+                  backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+                onChange={(e) => {
+                  setPlaybackRate(Number(e.target.value));
+                }}
+              />
+              <div style={{
+                minWidth: 36,
+                textAlign: "right",
+                color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+              }}>
+                {`${playbackRate.toFixed(1)}x`}
               </div>
             </div>
-            <div className={`gridcell header ${theme}`}>{"Playhead Mode"}</div>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
+              fontWeight: 500
+            }}>
+              Playhead Mode
+            </div>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
                 gridTemplateRows: `repeat(${gridRows}, 1fr)`,
-                gap: 3,
+                gap: 4,
               }}
             >
-              <div
-                className={`gridcell ${theme} ${mode === "page" && "selected"}`}
-                onClick={() => {
-                  setMode("page");
-                }}
-              >
-                Page
-              </div>
-              <div
-                className={`gridcell ${theme} ${mode === "stop" && "selected"}`}
-                onClick={() => {
-                  setMode("stop");
-                }}
-              >
-                Stop
-              </div>
-              <div
-                className={`gridcell ${theme} ${mode === "loop" && "selected"}`}
-                onClick={() => {
-                  setMode("loop");
-                }}
-              >
-                Loop
-              </div>
-              <div
-                className={`gridcell ${theme} ${mode === "continue" && "selected"}`}
-                onClick={() => {
-                  setMode("continue");
-                }}
-              >
-                Continue
-              </div>
-              <div
-                className={`gridcell ${theme} ${mode === "scroll" && "selected"}`}
-                onClick={() => {
-                  setMode("scroll");
-                }}
-              >
-                Scroll
-              </div>
-              <div
-                className={`gridcell ${theme} ${mode === "scrub" && "selected"}`}
-                onClick={() => {
-                  setMode("scrub");
-                }}
-                title="Keeps the playhead fixed in the center with the audio scrolling underneath - best for reducing motion sickness"
-              >
-                Scrub
-              </div>
+              {playheadModes.map((modeName) => (
+                <div
+                  key={modeName}
+                  style={{
+                    padding: "4px 8px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    borderRadius: 4,
+                    backgroundColor: mode === modeName
+                      ? (dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)")
+                      : (dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)"),
+                    color: mode === modeName
+                      ? (dark ? "rgba(255, 255, 255, 1)" : "rgba(0, 0, 0, 0.9)")
+                      : (dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)"),
+                    fontWeight: mode === modeName ? 500 : 400,
+                    transition: "all 0.15s ease",
+                  }}
+                  onClick={() => {
+                    setMode(modeName);
+                  }}
+                  title={modeName === "scrub"
+                    ? "Keeps the playhead fixed in the center with the audio scrolling underneath - best for reducing motion sickness"
+                    : modeName}
+                >
+                  {modeName.charAt(0).toUpperCase() + modeName.slice(1)}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -345,4 +486,14 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   );
 }
 
+// Helper function to format time as mm:ss
+function formatTime(time: number): string {
+  if (!time) return '0:00';
+
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
 export default PlaybackProvider;
+

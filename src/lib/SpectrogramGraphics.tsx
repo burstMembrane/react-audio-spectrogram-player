@@ -7,6 +7,7 @@ import ZoomProvider from "./ZoomProvider";
 import SpectrogramAnnotations from "./SpectogramAnnotations";
 import { Annotations } from "./Annotation";
 import { usePlayback } from "./PlaybackProvider";
+import { useTheme } from "./ThemeProvider";
 import init, { mel_spectrogram_db } from "rust-melspec-wasm";
 
 function max(arr: Float32Array[]) {
@@ -76,12 +77,16 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     playheadWidth = 0.005,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const loadingCanvasRef = useRef<HTMLCanvasElement>(null);
   const [dataURL, setDataURL] = useState<string>("");
+  const [loadingDataURL, setLoadingDataURL] = useState<string>("");
   const [spec, setSpec] = useState<Float32Array[] | null>(null);
   const [imageData, setImageData] = useState<ImageData>(defaultImageData);
   const { audioSamples, sampleRate } = usePlayback();
+  const { dark } = useTheme();
 
   const [wasmReady, setWasmReady] = useState(false);
+  const [loadingState, setLoadingState] = useState<"initial" | "loading-wasm" | "loading-peaks" | "ready">("initial");
 
   const colors = createColorMap({
     colormap: colormap,
@@ -89,18 +94,93 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     format: "rgba",
     alpha: 255,
   });
+  // Draw loading message to canvas
+  useEffect(() => {
+    if (!loadingCanvasRef.current) return;
+
+    const canvas = loadingCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Reset any previous transformations
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    const displayWidth = 800;
+    const displayHeight = specHeight;
+
+    const scale = window.devicePixelRatio || 4;
+    canvas.width = displayWidth * scale;
+
+    canvas.height = 3 * displayHeight / 4 * scale;
+
+
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    ctx.scale(scale, scale);
+
+    // Clear the entire canvas
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+    // Fill with slightly transparent background based on theme
+    ctx.fillStyle = dark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
+    ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+    // Set up centered text
+    const message = loadingState === 'loading-wasm'
+      ? 'Loading WebAssembly module...'
+      : loadingState === 'loading-peaks'
+        ? 'Computing spectrogram...'
+        : 'Initializing...';
+
+    if (message) {
+      ctx.font = `${scale > 1 ? 12 : 14}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // aspect ratio
+
+      ctx.fillStyle = dark ? '#ffffff' : '#333333';
+      const centerX = displayWidth / 2;
+      const centerY = (3 * displayHeight / 4) / 2;
+
+      // Draw the message
+      ctx.fillText(message, centerX, centerY, displayWidth);
+    }
+
+    // Save as high-quality PNG
+    setLoadingDataURL(canvas.toDataURL('image/png', 1.0));
+
+    // Set up animation loop if we're still loading
+    if (loadingState !== 'ready') {
+      const animationId = requestAnimationFrame(() => {
+        // Trigger a re-render for animation
+        setLoadingState(prev => prev);
+      });
+
+      return () => cancelAnimationFrame(animationId);
+    }
+  }, [loadingState, dark, specHeight]);
 
   useEffect(() => {
-    if (wasmReady || sxx !== undefined) return;
+    if (sxx !== undefined) {
+      setLoadingState('ready');
+      return;
+    }
+
+    setLoadingState('loading-wasm');
     init()
       .then(() => {
         setWasmReady(true);
-        // console.log("WASM initialized successfully");
+        if (audioSamples && audioSamples.length > 0) {
+          setLoadingState('loading-peaks');
+        } else {
+          setLoadingState('ready');
+        }
       })
       .catch((error) => {
         console.error("Failed to initialize WASM:", error);
+        setLoadingState('ready'); // Even on error, we move to ready state to avoid infinite loading
       });
-  }, [sxx]);
+  }, [sxx, audioSamples]);
 
   useEffect(() => {
     if (sxx !== undefined) {
@@ -110,23 +190,37 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
           (_, colIndex) => new Float32Array(sxx.map((row) => row[colIndex])),
         ),
       );
+      setLoadingState('ready');
       return;
     }
-    if (!wasmReady) return;
-    if (audioSamples && audioSamples.length > 0) {
-      const melSpec = mel_spectrogram_db(
-        sampleRate,
-        audioSamples,
-        n_fft,
-        win_length,
-        hop_length,
-        f_min,
-        f_max,
-        n_mels,
-        top_db,
-      );
 
-      setSpec(melSpec);
+    if (!wasmReady) return;
+
+    if (audioSamples && audioSamples.length > 0) {
+      setLoadingState('loading-peaks');
+
+      // Use setTimeout to allow the UI to update with loading message
+      setTimeout(() => {
+        try {
+          const melSpec = mel_spectrogram_db(
+            sampleRate,
+            audioSamples,
+            n_fft,
+            win_length,
+            hop_length,
+            f_min,
+            f_max,
+            n_mels,
+            top_db,
+          );
+
+          setSpec(melSpec);
+          setLoadingState('ready');
+        } catch (error) {
+          console.error("Error computing spectrogram:", error);
+          setLoadingState('ready');
+        }
+      }, 50);
     }
   }, [
     wasmReady,
@@ -175,6 +269,14 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
 
   const spectrogramContent = <SpectrogramContent dataURL={dataURL} playheadColor={playheadColor} playheadWidth={playheadWidth} />;
 
+  // Create loading content component only when in a loading state and we have a data URL
+  const getLoadingContent = () => {
+    if (loadingState !== 'ready' && loadingDataURL) {
+      return <SpectrogramContent dataURL={loadingDataURL} playheadColor="transparent" playheadWidth={0} />;
+    }
+    return spectrogramContent;
+  };
+
   return (
     <>
       {spec && (
@@ -185,13 +287,24 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
           width={spec.length}
         />
       )}
+      <canvas
+        hidden
+        ref={loadingCanvasRef}
+        height={specHeight}
+        width={800}
+        style={{ width: '800px', height: `${specHeight}px` }}
+      />
       <ZoomProvider
         startTimeInitial={startTimeInitial}
         endTimeInitial={endTimeInitial}
       >
         <>
           <SpectrogramViewer height={specHeight}>
-            {spectrogramContent}
+            {loadingState !== 'ready' && loadingDataURL ? (
+              <SpectrogramContent dataURL={loadingDataURL} playheadColor="transparent" playheadWidth={0} />
+            ) : (
+              spectrogramContent
+            )}
           </SpectrogramViewer>
           {Children.toArray(
             annotations?.map(({ title, data, height, strokeWidth }) => (
