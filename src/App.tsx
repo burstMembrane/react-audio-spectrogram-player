@@ -30,8 +30,8 @@ function App() {
         navigator={true}
         playbackSpeedInitial={1.0}
         playheadModeInitial="scroll"
-        specHeight={300}
-        navHeight={60}
+        specHeight={500}
+        navHeight={30}
         colormap="inferno"
         transparent={true}
         dark={true}

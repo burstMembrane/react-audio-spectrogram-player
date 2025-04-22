@@ -131,20 +131,57 @@ function ZoomProvider(props: ZoomProviderProps) {
 
   const zoomIn = () => {
     if (duration === null) return;
-    const newStartTime = Math.max(0, startTime + 0.2 * zoomedDuration);
-    const newEndTime = Math.min(duration, endTime - 0.2 * zoomedDuration);
-    setStartTime(newStartTime);
-    setEndTime(newEndTime);
-    setCurrentTime(newStartTime);
+
+    // Calculate zoom percentage (20% of current view)
+    const zoomPercentage = 0.2;
+
+    // Calculate zoom amount from each side
+    const zoomAmount = zoomedDuration * zoomPercentage;
+
+    // Calculate where the current time is within the view as a percentage
+    const currentTimeRelativePosition = (currentTime - startTime) / zoomedDuration;
+
+    // Apply zoom keeping the current time at the same relative position
+    const newStartTime = Math.max(0, startTime + zoomAmount);
+    const newEndTime = Math.min(duration, endTime - zoomAmount);
+
+    // Only zoom if we're not already at maximum zoom
+    if (newEndTime - newStartTime >= 0.1) { // Prevent zooming in too much
+      // Calculate where currentTime should be in the new view
+      const newCurrentTimePosition = newStartTime + (newEndTime - newStartTime) * currentTimeRelativePosition;
+
+      // Set the new zoom window
+      setStartTime(newStartTime);
+      setEndTime(newEndTime);
+
+      // If current time is outside the new view, adjust it
+      if (currentTime < newStartTime || currentTime > newEndTime) {
+        setCurrentTime(newCurrentTimePosition);
+      }
+    }
   };
 
   const zoomOut = () => {
     if (duration === null) return;
-    const newStartTime = Math.max(0, startTime - (1 / 3) * zoomedDuration);
-    const newEndTime = Math.min(duration, endTime + (1 / 3) * zoomedDuration);
+
+    // Calculate zoom percentage (33% of current view for zooming out)
+    const zoomPercentage = 1 / 3;
+
+    // Calculate zoom amount to add to each side
+    const zoomAmount = zoomedDuration * zoomPercentage;
+
+    // Calculate where the current time is within the view as a percentage
+    const currentTimeRelativePosition = (currentTime - startTime) / zoomedDuration;
+
+    // Apply zoom keeping the current time at the same relative position
+    const newStartTime = Math.max(0, startTime - zoomAmount);
+    const newEndTime = Math.min(duration, endTime + zoomAmount);
+
+    // Set the new zoom window
     setStartTime(newStartTime);
     setEndTime(newEndTime);
-    setCurrentTime(newStartTime);
+
+    // For zoom out, we don't need to adjust currentTime as it will always be in the wider view
   };
 
   const nextPage = () => {
@@ -162,6 +199,34 @@ function ZoomProvider(props: ZoomProviderProps) {
     setStartTime(newStartTime);
     setEndTime(newEndTime);
   };
+
+  // Add keyboard event handlers for zoom
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if the event target is an input or textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return; // Don't handle hotkeys when typing in input fields
+      }
+
+      // Handle plus/equal key (with or without shift for +)
+      if (event.key === '+' || event.key === '=' || event.key === 'Equal') {
+        zoomIn();
+        event.preventDefault();
+      }
+      // Handle minus/underscore key (with or without shift for -)
+      else if (event.key === '-' || event.key === '_' || event.key === 'Minus') {
+        zoomOut();
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [duration, startTime, endTime, zoomedDuration, currentTime]); // Include currentTime in dependencies
 
   const isZoomed = duration !== null && (startTime > 0 || endTime < duration);
 

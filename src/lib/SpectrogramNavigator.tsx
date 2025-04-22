@@ -84,7 +84,7 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "row", gap: 5 }}>
-      <button className={theme} onClick={zoomOut}>
+      <button className={theme} onClick={zoomOut} title="Zoom Out (-)" aria-label="Zoom Out (press minus key)">
         Zoom Out
       </button>
       {duration ? (
@@ -131,6 +131,8 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
         className={theme}
         style={{ fontFamily: "monospace" }}
         onClick={zoomIn}
+        title="Zoom In (+)"
+        aria-label="Zoom In (press plus key)"
       >
         Zoom In
       </button>
