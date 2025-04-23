@@ -18,7 +18,7 @@ function App() {
     >
       <SpectrogramPlayer
         src={src}
-        // sampleRate={16000}
+        sampleRate={8000}
         n_fft={1024}
         win_length={400}
         hop_length={160}
