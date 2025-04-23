@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { usePlayback } from "./PlaybackProvider";
 import { useZoom } from "./ZoomProvider";
 
@@ -11,9 +11,28 @@ interface SpectrogramContentProps {
 function SpectrogramContent(props: SpectrogramContentProps) {
   const { dataURL, playheadColor, playheadWidth } = props;
   const playheadRef = useRef<SVGLineElement>(null);
+  const [displayTime, setDisplayTime] = useState(0);
+  const prevTimeRef = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
 
-  const { duration, currentTime } = usePlayback();
+  const { duration, currentTime, isPlaying } = usePlayback();
   const { zoomedDuration } = useZoom();
+
+  // Use continuous animation loop instead of depending on isPlaying
+  useEffect(() => {
+    // Always update displayTime on currentTime changes
+    setDisplayTime(currentTime);
+
+    // Store current time for movement detection
+    prevTimeRef.current = currentTime;
+
+    // Clean up animation frame on unmount
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [currentTime]);
 
   if (!duration) {
     return null;
@@ -34,8 +53,8 @@ function SpectrogramContent(props: SpectrogramContentProps) {
         ref={playheadRef}
         stroke={playheadColor || "red"}
         strokeWidth={(playheadWidth || 0.0010) * zoomedDuration}
-        x1={currentTime}
-        x2={currentTime}
+        x1={displayTime}
+        x2={displayTime}
         y1={0}
         y2={100}
       />

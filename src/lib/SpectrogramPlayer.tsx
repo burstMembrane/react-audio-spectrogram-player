@@ -6,7 +6,7 @@ import { Annotations } from "./Annotation";
 
 interface SpectrogramPlayerProps {
   src: string;
-  sxx?: number[][];
+  spectrogramData?: number[][];
   sampleRate?: number;
   n_fft?: number;
   win_length?: number;
@@ -34,7 +34,7 @@ interface SpectrogramPlayerProps {
 const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
   const {
     src,
-    sxx = undefined,
+    spectrogramData = undefined,
     sampleRate = 16000,
     n_fft = 1024,
     win_length = 400,
@@ -49,7 +49,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
     startTimeInitial = undefined,
     endTimeInitial = undefined,
     playbackSpeedInitial = 1.0,
-    playheadModeInitial = "scroll",
+    playheadModeInitial = "scrub",
     specHeight = 200,
     navHeight = 50,
     colormap = "viridis",
@@ -71,7 +71,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
           playheadModeInitial={playheadModeInitial}
         >
           <SpectrogramGraphics
-            spectrogramData={sxx}
+            spectrogramData={spectrogramData}
             n_fft={n_fft}
             win_length={win_length}
             hop_length={hop_length}

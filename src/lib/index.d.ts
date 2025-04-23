@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React from 'react';
 
 export interface Annotations {
     data: (string | number)[][];
@@ -34,6 +34,6 @@ export interface SpectrogramPlayerProps {
     playheadWidth?: number;
 }
 
-declare const SpectrogramPlayer: (props: SpectrogramPlayerProps) => JSX.Element;
+declare const SpectrogramPlayer: React.FC<SpectrogramPlayerProps>;
 
 export default SpectrogramPlayer; 

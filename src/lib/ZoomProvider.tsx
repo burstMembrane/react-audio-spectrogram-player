@@ -160,9 +160,11 @@ function ZoomProvider(props: ZoomProviderProps) {
       // Calculate the exact center position for the current zoom level
       const halfZoomedDuration = zoomedDuration / 2;
 
+
       // Calculate time values for the view window with playhead at center
       let newStartTime = Math.max(0, currentTime - halfZoomedDuration);
       let newEndTime = Math.min(duration, currentTime + halfZoomedDuration);
+
 
       // Handle edge cases when near the beginning or end of the audio
       if (newStartTime <= 0) {

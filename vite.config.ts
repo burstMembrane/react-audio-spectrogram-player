@@ -7,6 +7,8 @@ import wasm from "vite-plugin-wasm";
 
 export default defineConfig({
   build: {
+    minify: false,
+    sourcemap: true,
     lib: {
       entry: path.resolve(__dirname, "src/lib/index.tsx"),
       name: "SpectrogramPlayer",

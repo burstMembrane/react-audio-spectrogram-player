@@ -19,6 +19,7 @@ export type PlaybackContextType = {
   setCurrentTime: (newTime: number) => void;
   setPlaybackRate: (newTime: number) => void;
   pause: () => void;
+  isPlaying: boolean;
   audioSamples: Float32Array;
 };
 
@@ -32,6 +33,7 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   setCurrentTime: () => { },
   setPlaybackRate: () => { },
   pause: () => { },
+  isPlaying: false,
   audioSamples: new Float32Array(0),
 });
 
@@ -205,6 +207,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         setPlaybackRate,
         pause,
         audioSamples,
+        isPlaying: audioRef.current?.paused === false,
       }}
     >
       {children}
