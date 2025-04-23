@@ -2,7 +2,7 @@ import "./App.css";
 
 import SpectrogramPlayer from "./lib/SpectrogramPlayer";
 
-import src from "./assets/because.mp3";
+import src from "./assets/audio_peggy.mp3";
 
 
 function App() {
@@ -18,7 +18,7 @@ function App() {
     >
       <SpectrogramPlayer
         src={src}
-        sampleRate={8000}
+        sampleRate={16000}
         n_fft={2048}
         win_length={400}
         hop_length={160}
