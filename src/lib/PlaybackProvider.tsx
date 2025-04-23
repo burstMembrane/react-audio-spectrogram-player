@@ -21,6 +21,7 @@ export type PlaybackContextType = {
   pause: () => void;
   isPlaying: boolean;
   audioSamples: Float32Array;
+  audioSrc: string;
 };
 
 export const PlaybackContext = createContext<PlaybackContextType>({
@@ -35,6 +36,7 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   pause: () => { },
   isPlaying: false,
   audioSamples: new Float32Array(0),
+  audioSrc: "",
 });
 
 export function usePlayback() {
@@ -61,6 +63,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     currentTimeInitial = 0,
     playbackSpeedInitial = 1.0,
     playheadModeInitial = "page",
+
   } = props;
   const settings = props.settings ? true : false;
   const [duration, setDuration] = useState<number | null>(null);
@@ -74,6 +77,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   const [audioSamples, setAudioSamples] = useState<Float32Array>(
     new Float32Array(0),
   );
+
   const [sampleRateState, setSampleRate] = useState<number>(sampleRate);
 
   const theme = dark ? "dark" : "light";
@@ -208,6 +212,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         pause,
         audioSamples,
         isPlaying: audioRef.current?.paused === false,
+        audioSrc: src,
       }}
     >
       {children}

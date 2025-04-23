@@ -18,15 +18,9 @@ function SpectrogramContent(props: SpectrogramContentProps) {
   const { duration, currentTime, isPlaying } = usePlayback();
   const { zoomedDuration } = useZoom();
 
-  // Use continuous animation loop instead of depending on isPlaying
   useEffect(() => {
-    // Always update displayTime on currentTime changes
     setDisplayTime(currentTime);
-
-    // Store current time for movement detection
     prevTimeRef.current = currentTime;
-
-    // Clean up animation frame on unmount
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
