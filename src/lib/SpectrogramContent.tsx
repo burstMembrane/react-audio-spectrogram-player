@@ -6,6 +6,7 @@ interface SpectrogramContentProps {
   dataURL: string;
   playheadColor?: string;
   playheadWidth?: number;
+  height?: number;
 }
 
 function SpectrogramContent(props: SpectrogramContentProps) {
@@ -17,6 +18,7 @@ function SpectrogramContent(props: SpectrogramContentProps) {
 
   const { duration, currentTime, isPlaying } = usePlayback();
   const { zoomedDuration } = useZoom();
+
 
   useEffect(() => {
     setDisplayTime(currentTime);

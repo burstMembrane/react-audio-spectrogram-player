@@ -8,6 +8,7 @@ import {
   Dispatch,
 } from "react";
 import { useTheme } from "./ThemeProvider";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 export type PlaybackContextType = {
   duration: number | null;
@@ -22,6 +23,8 @@ export type PlaybackContextType = {
   isPlaying: boolean;
   audioSamples: Float32Array;
   audioSrc: string;
+  isLoadingAudio: boolean;
+  audioError: Error | null;
 };
 
 export const PlaybackContext = createContext<PlaybackContextType>({
@@ -37,6 +40,8 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   isPlaying: false,
   audioSamples: new Float32Array(0),
   audioSrc: "",
+  isLoadingAudio: false,
+  audioError: null,
 });
 
 export function usePlayback() {
@@ -55,16 +60,31 @@ export type PlaybackProviderProps = {
 
 const CURRENT_TIME_UPDATE_INTERVAL = 10;
 
+// Utility function to decode audio
+async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array, sampleRate: number }> {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+    sampleRate: desiredSampleRate,
+  });
+
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  const samples = audioBuffer.getChannelData(0);
+
+  return {
+    samples,
+    sampleRate: audioContext.sampleRate
+  };
+}
+
 function PlaybackProvider(props: PlaybackProviderProps) {
   const {
     children,
     src,
-    sampleRate,
+    sampleRate: requestedSampleRate,
     currentTimeInitial = 0,
     playbackSpeedInitial = 1.0,
     playheadModeInitial = "page",
-
   } = props;
+
   const settings = props.settings ? true : false;
   const [duration, setDuration] = useState<number | null>(null);
   const [currentTime, _setCurrentTime] = useState(currentTimeInitial);
@@ -74,14 +94,45 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   const intervalRef = useRef<number>();
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const { dark } = useTheme();
-  const [audioSamples, setAudioSamples] = useState<Float32Array>(
-    new Float32Array(0),
-  );
-
-  const [sampleRateState, setSampleRate] = useState<number>(sampleRate);
+  const [sampleRateState, setSampleRate] = useState<number>(requestedSampleRate);
 
   const theme = dark ? "dark" : "light";
 
+  // Use React Query to fetch and decode audio
+  const {
+    data: audioData,
+    error: audioError,
+    isLoading: isLoadingAudio,
+  } = useSuspenseQuery({
+    queryKey: ['audio', src, requestedSampleRate],
+    queryFn: async () => {
+      console.log("[PlaybackProvider] Fetching audio data from:", src);
+      try {
+        const response = await fetch(src);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        console.log("[PlaybackProvider] Audio fetched, decoding...");
+
+        const { samples, sampleRate } = await decodeAudioData(arrayBuffer, requestedSampleRate);
+        console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${samples.length}`);
+
+        // Update the sample rate state
+        setSampleRate(sampleRate);
+
+        return { samples, sampleRate };
+      } catch (error) {
+        console.error("[PlaybackProvider] Error fetching or decoding audio:", error);
+        throw error;
+      }
+    },
+
+
+  });
+
+  // Audio player functionality
   useEffect(() => {
     if (audioRef.current !== null) {
       if (audioRef.current.duration) {
@@ -127,27 +178,6 @@ function PlaybackProvider(props: PlaybackProviderProps) {
       };
     }
   }, [audioRef.current, playbackSpeedInitial]);
-
-  // useEffect(() => {
-  //   setMode(playheadModeInitial);
-  // }, [playheadModeInitial]);
-
-  useEffect(() => {
-    const fetchAudioData = async () => {
-      const response = await fetch(src);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({
-          sampleRate: sampleRateState,
-        });
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      const samples = audioBuffer.getChannelData(0);
-      setAudioSamples(samples);
-      setSampleRate(audioContext.sampleRate);
-    };
-
-    fetchAudioData();
-  }, [src]);
 
   const onDurationChange = (
     e: React.SyntheticEvent<HTMLAudioElement, Event>,
@@ -210,9 +240,11 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         setCurrentTime,
         setPlaybackRate,
         pause,
-        audioSamples,
+        audioSamples: audioData?.samples || new Float32Array(0),
         isPlaying: audioRef.current?.paused === false,
         audioSrc: src,
+        isLoadingAudio,
+        audioError: audioError as Error | null,
       }}
     >
       {children}
@@ -271,100 +303,131 @@ function PlaybackProvider(props: PlaybackProviderProps) {
               <source src={src} />
             </audio>
 
-            {/* Custom audio controls */}
-            <button
-              style={{
+            {/* Loading indicator */}
+            {isLoadingAudio ? (
+              <div style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 32,
-                height: 32,
-                margin: "2px 4px",
-                borderRadius: 5,
-                backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
-                color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-                transition: "background-color 0.15s ease",
-              }}
-              onClick={() => {
-                if (audioRef.current) {
-                  if (audioRef.current.paused) {
-                    audioRef.current.play();
-                  } else {
-                    audioRef.current.pause();
-                  }
-                }
-              }}
-            >
-              {audioRef.current && !audioRef.current.paused ? (
-                // Pause icon
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="6" y="4" width="4" height="16" />
-                  <rect x="14" y="4" width="4" height="16" />
-                </svg>
-              ) : (
-                // Play icon
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none" />
-                </svg>
-              )}
-            </button>
+                width: "100%",
+                color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+                fontSize: 12,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              }}>
+                Loading audio...
+              </div>
+            ) : audioError ? (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                color: "#e74c3c",
+                fontSize: 12,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              }}>
+                Error loading audio
+              </div>
+            ) : (
+              <>
+                {/* Custom audio controls */}
+                <button
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 32,
+                    height: 32,
+                    margin: "2px 4px",
+                    borderRadius: 5,
+                    backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+                    color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
+                    transition: "background-color 0.15s ease",
+                  }}
+                  onClick={() => {
+                    if (audioRef.current) {
+                      if (audioRef.current.paused) {
+                        audioRef.current.play();
+                      } else {
+                        audioRef.current.pause();
+                      }
+                    }
+                  }}
+                  disabled={isLoadingAudio || !!audioError}
+                >
+                  {audioRef.current && !audioRef.current.paused ? (
+                    // Pause icon
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="6" y="4" width="4" height="16" />
+                      <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                  ) : (
+                    // Play icon
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none" />
+                    </svg>
+                  )}
+                </button>
 
-            {/* Time display */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              marginLeft: 4,
-              fontSize: 12,
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-              minWidth: 80,
-            }}>
-              {duration ? (
-                `${formatTime(currentTime)} / ${formatTime(duration)}`
-              ) : "0:00 / 0:00"}
-            </div>
+                {/* Time display */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginLeft: 4,
+                  fontSize: 12,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+                  color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+                  minWidth: 80,
+                }}>
+                  {duration ? (
+                    `${formatTime(currentTime)} / ${formatTime(duration)}`
+                  ) : "0:00 / 0:00"}
+                </div>
 
-            {/* Time slider */}
-            <div style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              padding: "0 8px",
-            }}>
-              <input
-                type="range"
-                min="0"
-                max={duration || 0}
-                value={currentTime}
-                step="0.01"
-                style={{
-                  width: "100%",
-                  height: 4,
-                  borderRadius: 2,
-                  appearance: "none",
-                  backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-                  outline: "none",
-                  transition: "height 0.15s ease",
-                  cursor: "pointer",
-                }}
-                onChange={(e) => {
-                  const time = parseFloat(e.target.value);
-                  setCurrentTime(time);
-                }}
-              />
-            </div>
+                {/* Time slider */}
+                <div style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 8px",
+                }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration || 0}
+                    value={currentTime}
+                    step="0.01"
+                    style={{
+                      width: "100%",
+                      height: 4,
+                      borderRadius: 2,
+                      appearance: "none",
+                      backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+                      outline: "none",
+                      transition: "height 0.15s ease",
+                      cursor: "pointer",
+                    }}
+                    onChange={(e) => {
+                      const time = parseFloat(e.target.value);
+                      setCurrentTime(time);
+                    }}
+                    disabled={isLoadingAudio || !!audioError}
+                  />
+                </div>
 
-            {/* Playback rate display */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              fontSize: 12,
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-              marginRight: 4,
-            }}>
-              {`${playbackRate.toFixed(1)}x`}
-            </div>
+                {/* Playback rate display */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: 12,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+                  color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+                  marginRight: 4,
+                }}>
+                  {`${playbackRate.toFixed(1)}x`}
+                </div>
+              </>
+            )}
           </div>
 
           {settings && (
@@ -433,6 +496,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
                 onChange={(e) => {
                   setPlaybackRate(Number(e.target.value));
                 }}
+                disabled={isLoadingAudio || !!audioError}
               />
               <div style={{
                 minWidth: 36,

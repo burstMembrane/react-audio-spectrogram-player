@@ -9,14 +9,13 @@ import { Annotations } from "./Annotation";
 import { usePlayback } from "./PlaybackProvider";
 import { useTheme } from "./ThemeProvider";
 import init, { mel_spectrogram_db } from "rust-melspec-wasm";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 // Performance logging function
 const log = (func: string, msg: string) => {
   console.log(`[SpectrogramGraphics] ${func}: ${msg}`);
 };
-
 
 interface SpectrogramGraphicsProps {
   spectrogramData?: number[][];
@@ -39,7 +38,6 @@ interface SpectrogramGraphicsProps {
   playheadWidth?: number;
 }
 
-// Helper function to find max value in array
 function max(arr: Float32Array[]) {
   let maxVal = -Infinity;
   for (let i = 0; i < arr.length; i++) {
@@ -49,7 +47,6 @@ function max(arr: Float32Array[]) {
   return maxVal;
 }
 
-// Helper function to find min value in array
 function min(arr: Float32Array[]) {
   let minVal = Infinity;
   for (let i = 0; i < arr.length; i++) {
@@ -57,6 +54,51 @@ function min(arr: Float32Array[]) {
     minVal = Math.min(minVal, rowMin);
   }
   return minVal;
+}
+
+function getImageData(spec: Float32Array[], transparent: boolean, colormap: string) {
+  const colors = createColorMap({
+    colormap: colormap,
+    nshades: 256,
+    format: "rgba",
+    alpha: 255,
+  });
+
+  const smax = max(spec);
+  const smin = min(spec);
+
+  const imageData = new ImageData(spec.length, spec[0].length);
+
+  for (let j = spec[0].length - 1; j >= 0; j--) {
+    for (let i = spec.length - 1; i >= 0; i--) {
+      const num = Math.floor((255 * (spec[i][j] - smin)) / (smax - smin));
+      const redIndex = ((spec[0].length - 1 - j) * spec.length + i) * 4;
+      imageData.data[redIndex] = colors[num][0];
+      imageData.data[redIndex + 1] = colors[num][1];
+      imageData.data[redIndex + 2] = colors[num][2];
+      imageData.data[redIndex + 3] = transparent ? num : 255;
+    }
+  }
+
+  return imageData;
+}
+
+/**
+ * Convert ImageData to dataURL using an in-memory canvas
+ */
+function imageDataToDataURL(imageData: ImageData): string {
+  const canvas = document.createElement('canvas');
+  console.log("imageData", imageData);
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error("Failed to get canvas context");
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL();
 }
 
 function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
@@ -81,53 +123,37 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     playheadWidth = 0.005,
   } = props;
 
-
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dataURL, setDataURL] = useState<string>("");
   const { audioSamples, sampleRate, audioSrc } = usePlayback();
   const { dark } = useTheme();
 
+  const hasAudioData = !!audioSamples && audioSamples.length > 0;
+  const queryKey = useMemo(() => `spectrogram-${audioSrc}-${n_fft}-${win_length}-${audioSamples.length}-${hop_length}-${f_min}-${f_max}-${n_mels}-${top_db}-${colormap}`, [audioSrc, n_fft, win_length, audioSamples.length, hop_length, f_min, f_max, n_mels, top_db, colormap]);
 
-
-  // Check if we have audio data
-  const hasAudioData = true
-
-
-
-  const { data: processedData, isLoading } = useQuery({
-    queryKey: ['spectrogram', audioSrc, audioSamples?.length],
+  const { data: processedData, isLoading } = useSuspenseQuery({
+    queryKey: [queryKey],
     queryFn: async () => {
+      log("queryKey", queryKey.toString());
       log("queryFn", "Starting spectrogram data processing");
       const queryStart = performance.now();
 
       let spec: Float32Array[];
-      if (!audioSamples || audioSamples.length === 0) {
-        log("queryFn", "No audio samples available");
-        return null;
-      }
 
-      // Use provided spectrogramData if available
       if (spectrogramData !== undefined) {
         log("queryFn", "Using provided spectrogramData");
         spec = spectrogramData[0].map(
           (_, colIndex) => new Float32Array(spectrogramData.map((row) => row[colIndex]))
         );
       }
-      // Otherwise generate from audio samples
       else {
         if (!audioSamples || audioSamples.length === 0) {
           log("queryFn", "No audio samples available");
           return null;
         }
 
-        // Initialize WASM if needed
         log("queryFn", "Initializing WASM and computing spectrogram");
         try {
-          // Load WASM inside the query function
           await init();
 
-          // Generate mel spectrogram
           spec = mel_spectrogram_db(
             sampleRate,
             audioSamples,
@@ -139,7 +165,6 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
             n_mels,
             top_db
           );
-
           log("queryFn", `Mel spectrogram computed successfully with ${spec.length} frames`);
         } catch (error) {
           log("queryFn", `Error computing spectrogram: ${error}`);
@@ -148,69 +173,26 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         }
       }
 
-      // Process the image data
-      log("queryFn", "Processing image data");
-      const colors = createColorMap({
-        colormap,
-        nshades: 256,
-        format: "rgba",
-        alpha: 255,
-      });
+      // Generate image data from spectrogram
+      const imageData = getImageData(spec, transparent, colormap);
 
-      const smax = max(spec);
-      const smin = min(spec);
-
-      const imageData = new ImageData(spec.length, spec[0].length);
-
-      for (let j = spec[0].length - 1; j >= 0; j--) {
-        for (let i = spec.length - 1; i >= 0; i--) {
-          const num = Math.floor((255 * (spec[i][j] - smin)) / (smax - smin));
-          const redIndex = ((spec[0].length - 1 - j) * spec.length + i) * 4;
-          imageData.data[redIndex] = colors[num][0];
-          imageData.data[redIndex + 1] = colors[num][1];
-          imageData.data[redIndex + 2] = colors[num][2];
-          imageData.data[redIndex + 3] = transparent ? num : 255;
-        }
-      }
+      // Generate dataURL directly in the query function
+      const dataURL = imageDataToDataURL(imageData);
 
       const queryEnd = performance.now();
       log("queryFn", `Total processing time: ${(queryEnd - queryStart).toFixed(2)}ms`);
 
       return {
         spec,
-        imageData
+        imageData,
+        dataURL,
+
       };
     },
-    enabled: true,
-
 
   });
 
-  // Draw the spectrogram image to canvas when data is available
-  useEffect(() => {
-    if (!processedData) return;
 
-    log("drawCanvas", "Drawing spectrogram to canvas");
-    const drawStart = performance.now();
-
-    // Draw to canvas
-    if (!canvasRef.current) return;
-
-    const ctx = canvasRef.current.getContext("2d");
-    if (!ctx) return;
-
-    canvasRef.current.width = processedData.imageData.width;
-    canvasRef.current.height = processedData.imageData.height;
-
-    ctx.putImageData(processedData.imageData, 0, 0);
-    const newDataUrl = canvasRef.current.toDataURL();
-
-    // Update state
-    setDataURL(newDataUrl);
-
-    const drawEnd = performance.now();
-    log("drawCanvas", `Canvas drawing completed in ${(drawEnd - drawStart).toFixed(2)}ms`);
-  }, [processedData]);
 
   // Create a simple loading placeholder
   const loadingContent = (
@@ -231,7 +213,6 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     </div>
   );
 
-  // No audio content placeholder
   const noAudioContent = (
     <div
       style={{
@@ -249,50 +230,49 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     </div>
   );
 
-  const spectrogramContent = <SpectrogramContent dataURL={dataURL} playheadColor={playheadColor} playheadWidth={playheadWidth} />;
+
 
   if (!hasAudioData && !spectrogramData) {
-    return (
-      <>
-        {noAudioContent}
-      </>
-    );
+    return noAudioContent;
   }
 
-  if (isLoading) {
-    return (
-      <>
-        {loadingContent}
-      </>
-    );
+  if (isLoading || !processedData?.dataURL) {
+    return loadingContent;
   }
+
 
   return (
-    <>
-      <canvas hidden ref={canvasRef} />
-      <ZoomProvider startTimeInitial={startTimeInitial} endTimeInitial={endTimeInitial}>
-        <>
-          <SpectrogramViewer height={specHeight}>
-            {spectrogramContent}
-          </SpectrogramViewer>
-          {Children.toArray(
-            annotations?.map(({ title, data, height, strokeWidth }) => (
-              <SpectrogramAnnotations
-                title={title}
-                height={height}
-                data={data}
-                strokeWidth={strokeWidth}
-              />
-            ))
-          )}
-          {navigator && (
-            <SpectrogramNavigator height={navHeight}>
-              {spectrogramContent}
-            </SpectrogramNavigator>
-          )}
-        </>
-      </ZoomProvider>
-    </>
+    <ZoomProvider startTimeInitial={startTimeInitial} endTimeInitial={endTimeInitial}>
+      <>
+        <SpectrogramViewer height={specHeight}>
+          <SpectrogramContent
+            dataURL={processedData?.dataURL}
+            playheadColor={playheadColor}
+            playheadWidth={playheadWidth}
+
+          />
+        </SpectrogramViewer>
+        {Children.toArray(
+          annotations?.map(({ title, data, height, strokeWidth }) => (
+            <SpectrogramAnnotations
+              title={title}
+              height={height}
+              data={data}
+              strokeWidth={strokeWidth}
+            />
+          ))
+        )}
+        {navigator && (
+          <SpectrogramNavigator height={navHeight}>
+            <SpectrogramContent
+              dataURL={processedData?.dataURL}
+              playheadColor={playheadColor}
+              playheadWidth={playheadWidth}
+            />
+          </SpectrogramNavigator>
+        )}
+      </>
+    </ZoomProvider>
   );
 }
 

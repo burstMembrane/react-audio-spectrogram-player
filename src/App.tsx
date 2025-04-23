@@ -23,7 +23,7 @@ function App() {
         win_length={400}
         hop_length={160}
         f_min={0}
-        f_max={8000.0}
+        f_max={12000.0}
         n_mels={128}
         top_db={80}
         settings={true}
@@ -31,7 +31,7 @@ function App() {
         playbackSpeedInitial={1.0}
         playheadModeInitial="scrub"
         playheadWidth={0.0010}
-        playheadColor="black"
+        playheadColor="white"
         specHeight={500}
         navHeight={50}
         colormap="inferno"

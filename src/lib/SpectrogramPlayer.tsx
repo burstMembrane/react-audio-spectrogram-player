@@ -4,11 +4,11 @@ import ThemeProvider from "./ThemeProvider";
 import "./SpectrogramPlayer.css";
 import { Annotations } from "./Annotation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
+import { Suspense } from "react";
 
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
-
+import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -82,37 +82,39 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
       <div style={{ width: "100%" }}>
-        <ThemeProvider dark={dark}>
-          <PlaybackProvider
-            src={src}
-            settings={settings}
-            sampleRate={sampleRate}
-            currentTimeInitial={startTimeInitial}
-            playbackSpeedInitial={playbackSpeedInitial}
-            playheadModeInitial={playheadModeInitial}
-          >
-            <SpectrogramGraphics
-              spectrogramData={spectrogramData}
-              n_fft={n_fft}
-              win_length={win_length}
-              hop_length={hop_length}
-              f_min={f_min}
-              f_max={f_max}
-              n_mels={n_mels}
-              top_db={top_db}
-              annotations={annotations}
-              navigator={navigator}
-              startTimeInitial={startTimeInitial}
-              endTimeInitial={endTimeInitial}
-              navHeight={navHeight}
-              specHeight={specHeight}
-              colormap={colormap}
-              transparent={transparent}
-              playheadColor={playheadColor}
-              playheadWidth={playheadWidth}
-            />
-          </PlaybackProvider>
-        </ThemeProvider>
+        <Suspense fallback={<Loader2 />}>
+          <ThemeProvider dark={dark}>
+            <PlaybackProvider
+              src={src}
+              settings={settings}
+              sampleRate={sampleRate}
+              currentTimeInitial={startTimeInitial}
+              playbackSpeedInitial={playbackSpeedInitial}
+              playheadModeInitial={playheadModeInitial}
+            >
+              <SpectrogramGraphics
+                spectrogramData={spectrogramData}
+                n_fft={n_fft}
+                win_length={win_length}
+                hop_length={hop_length}
+                f_min={f_min}
+                f_max={f_max}
+                n_mels={n_mels}
+                top_db={top_db}
+                annotations={annotations}
+                navigator={navigator}
+                startTimeInitial={startTimeInitial}
+                endTimeInitial={endTimeInitial}
+                navHeight={navHeight}
+                specHeight={specHeight}
+                colormap={colormap}
+                transparent={transparent}
+                playheadColor={playheadColor}
+                playheadWidth={playheadWidth}
+              />
+            </PlaybackProvider>
+          </ThemeProvider>
+        </Suspense>
       </div>
     </PersistQueryClientProvider>
   );
