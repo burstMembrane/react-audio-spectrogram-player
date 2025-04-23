@@ -7,10 +7,11 @@ interface SpectrogramContentProps {
   playheadColor?: string;
   playheadWidth?: number;
   height?: number;
+  sampleRate?: number;
 }
 
 function SpectrogramContent(props: SpectrogramContentProps) {
-  const { dataURL, playheadColor, playheadWidth } = props;
+  const { dataURL, playheadColor, playheadWidth, sampleRate } = props;
   const playheadRef = useRef<SVGLineElement>(null);
   const [displayTime, setDisplayTime] = useState(0);
   const prevTimeRef = useRef(0);

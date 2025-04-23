@@ -126,7 +126,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   } = props;
 
   const { audioSamples, sampleRate, audioSrc } = usePlayback();
-  const { dark } = useTheme();
+  const { theme } = useTheme();
 
   const hasAudioData = !!audioSamples && audioSamples.length > 0;
   const queryKey = useMemo(() => `spectrogram-${audioSrc}-${n_fft}-${win_length}-${audioSamples.length}-${hop_length}-${f_min}-${f_max}-${n_mels}-${top_db}-${colormap}`, [audioSrc, n_fft, win_length, audioSamples.length, hop_length, f_min, f_max, n_mels, top_db, colormap]);
@@ -205,8 +205,8 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: dark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)',
-        color: dark ? 'white' : 'black',
+        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)',
+        color: theme === 'dark' ? 'white' : 'black',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
       }}
     >
@@ -223,8 +223,8 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: dark ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
-        color: dark ? 'white' : 'black',
+        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+        color: theme === 'dark' ? 'white' : 'black',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
       }}
     >
@@ -267,6 +267,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         {navigator && (
           <SpectrogramNavigator height={navHeight}>
             <SpectrogramContent
+              sampleRate={sampleRate}
               dataURL={processedData?.dataURL}
               playheadColor={playheadColor}
               playheadWidth={playheadWidth}

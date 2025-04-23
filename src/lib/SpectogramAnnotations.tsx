@@ -31,8 +31,8 @@ function SpectrogramAnnotations(props: Annotations) {
 
   const svgCanvasHeight = width !== 0 ? (displayRange / width) * height : 0;
 
-  const { dark } = useTheme();
-  const annotationColor = dark ? "white" : "black";
+  const { theme } = useTheme();
+  const annotationColor = theme === "dark" ? "white" : "black";
 
   const svgFontSize = svgCanvasHeight * 0.67;
   const svgStrokeWidth = 0.001 * strokeWidth * displayRange;

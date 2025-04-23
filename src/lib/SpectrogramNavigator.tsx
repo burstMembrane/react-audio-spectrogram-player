@@ -28,7 +28,7 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragEnd, setDragEnd] = useState<number | null>(null);
-  const { dark } = useTheme();
+  const { theme } = useTheme();
 
   // Add hover states for buttons
   const [zoomInHover, setZoomInHover] = useState(false);
@@ -99,7 +99,7 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
     cursor: 'pointer',
     background: 'transparent',
     border: 'none',
-    color: dark ? 'white' : 'black',
+    color: theme === 'dark' ? 'white' : 'black',
     transition: 'all 0.2s ease',
     zIndex: 10,
     opacity: showControls ? 0.9 : 0.3,

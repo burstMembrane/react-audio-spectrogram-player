@@ -7,10 +7,10 @@ import {
   SetStateAction,
   Dispatch,
 } from "react";
-import { useTheme } from "@/lib/ThemeProvider";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Pause, Play, Settings2Icon } from "lucide-react";
-
+import { PauseCircle, PlayCircle, Settings2Icon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 type AudioControlsProps = {
   audioRef: React.RefObject<HTMLAudioElement>;
   isLoadingAudio: boolean;
@@ -19,10 +19,10 @@ type AudioControlsProps = {
   currentTime: number;
   setCurrentTime: (newTime: number) => void;
   playbackRate: number;
-  dark: boolean;
   audioSrc: string;
   setDuration: Dispatch<SetStateAction<number | null>>;
   setPlaybackRate: (newTime: number) => void;
+  isPlaying: boolean;
 };
 
 function AudioControls({
@@ -33,11 +33,10 @@ function AudioControls({
   currentTime,
   setCurrentTime,
   playbackRate,
+  isPlaying,
 }: AudioControlsProps) {
   return (
-
     <div className="w-full flex justify-center items-center gap-4">
-
       {isLoadingAudio ? (
         <div>
           Loading audio...
@@ -48,61 +47,49 @@ function AudioControls({
         </div>
       ) : (
         <>
-          <button
+          <Button
+            variant={"ghost"}
+            size={"icon"}
             onClick={() => {
               const audio = audioRef.current;
               if (audio) {
-                audio.paused ? audio.play() : audio.pause();
+                if (audio.paused) {
+                  audio.play();
+                } else {
+                  audio.pause();
+                }
               }
             }}
             disabled={isLoadingAudio || !!audioError}
           >
-            {audioRef.current?.paused === false ? (
-              <Pause className="w-4 h-4" />
+            {isPlaying ? (
+              <PauseCircle className="w-6 h-6" />
             ) : (
-              <Play className="w-4 h-4" />
+              <PlayCircle className="w-6 h-6" />
             )}
-          </button>
-          <div className="ml-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">
-            {currentTime ? `${formatTime(currentTime)}` : "0:00"}
-          </div>
-          {/* progress bar */}
-          <div className="flex flex-1 items-center px-2">
-            <input
-              type="range"
-              min="0"
-              max={duration || 0}
+          </Button>
+          <div className="flex w-full items-center  space-between gap-4">
+            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
+              {currentTime ? `${formatTime(currentTime)}` : "0:00"}
+            </div>
+            {/* Progress bar with correct props */}
+            <Progress
+              className="h-2"
               value={currentTime}
-              step="0.01"
-              className="w-full h-1.5 appearance-none rounded-full bg-neutral-300 dark:bg-neutral-700 cursor-pointer
-      [&::-webkit-slider-thumb]:appearance-none
-      [&::-webkit-slider-thumb]:h-3
-      [&::-webkit-slider-thumb]:w-3
-      [&::-webkit-slider-thumb]:rounded-full
-      [&::-webkit-slider-thumb]:bg-neutral-600
-      [&::-webkit-slider-thumb]:dark:bg-neutral-400
-      [&::-moz-range-thumb]:h-3
-      [&::-moz-range-thumb]:w-3
-      [&::-moz-range-thumb]:rounded-full  
-      [&::-moz-range-thumb]:bg-neutral-600"
-              onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
-              disabled={isLoadingAudio || !!audioError}
+              maxValue={duration || 0}
+              onChange={(value) => setCurrentTime(value)}
+
             />
+            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
+              {duration ? `${formatTime(duration)}` : "0:00"}
+            </div>
           </div>
-          {/* time display */}
-          <div className="ml-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">
-            {duration ? `${formatTime(duration)}` : "0:00"}
-          </div>
-          {/* playback rate display */}
-          <div className="text-sm dark:text-neutral-400">
+          <div className="text-sm dark:text-neutral-400 select-none">
             {`${playbackRate.toFixed(1)}x`}
           </div>
         </>
-      )
-      }
-    </div >
-
-
+      )}
+    </div>
   );
 }
 
@@ -190,9 +177,10 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const intervalRef = useRef<number>();
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const { dark } = useTheme();
+
   const [sampleRateState, setSampleRate] = useState<number>(requestedSampleRate);
 
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const {
     data: audioData,
@@ -274,6 +262,98 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   }, [audioRef.current, playbackSpeedInitial]);
 
+  // Add keyboard event listener for spacebar and arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keyboard shortcuts if we're not in an input field
+      if (document.activeElement?.tagName === 'INPUT') return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          if (audioRef.current) {
+            if (audioRef.current.paused) {
+              audioRef.current.play().then(() => setIsPlaying(true));
+            } else {
+              audioRef.current.pause();
+              setIsPlaying(false);
+            }
+          }
+          break;
+
+        case 'ArrowLeft':
+          e.preventDefault();
+          // Seek backward
+          if (audioRef.current) {
+            const seekAmount = e.shiftKey ? 0.01 : 0.1; // Finer seek with shift key
+            const newTime = Math.max(0, audioRef.current.currentTime - seekAmount);
+            setCurrentTime(newTime);
+          }
+          break;
+
+        case 'ArrowRight':
+          e.preventDefault();
+          // Seek forward
+          if (audioRef.current && duration) {
+            const seekAmount = e.shiftKey ? 0.01 : 0.1; // Finer seek with shift key
+            const newTime = Math.min(duration, audioRef.current.currentTime + seekAmount);
+            setCurrentTime(newTime);
+          }
+          break;
+
+        // Optionally add up/down arrows for volume control
+        case 'ArrowUp':
+          e.preventDefault();
+          if (audioRef.current) {
+            audioRef.current.volume = Math.min(1, audioRef.current.volume + 0.1);
+          }
+          break;
+
+        case 'ArrowDown':
+          e.preventDefault();
+          if (audioRef.current) {
+            audioRef.current.volume = Math.max(0, audioRef.current.volume - 0.1);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [duration]); // Add duration to dependencies
+
+  // Add event listeners to update isPlaying state
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+      const handleEnded = () => setIsPlaying(false);
+
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('pause', handlePause);
+      audio.addEventListener('ended', handleEnded);
+
+      return () => {
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('pause', handlePause);
+        audio.removeEventListener('ended', handleEnded);
+      };
+    }
+  }, [audioRef.current]);
+
+  // Update the Button click handler
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (audioRef.current.paused) {
+        audioRef.current.play().then(() => setIsPlaying(true));
+      } else {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
   const onDurationChange = (
     e: React.SyntheticEvent<HTMLAudioElement, Event>,
   ) => {
@@ -336,7 +416,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         setPlaybackRate,
         pause,
         audioSamples: audioData?.samples || new Float32Array(0),
-        isPlaying: audioRef.current?.paused === false,
+        isPlaying: isPlaying,
         audioSrc: src,
         isLoadingAudio,
         audioError: audioError as Error | null,
@@ -362,21 +442,23 @@ function PlaybackProvider(props: PlaybackProviderProps) {
           currentTime={currentTime}
           setCurrentTime={setCurrentTime}
           playbackRate={playbackRate}
-          dark={dark}
           audioSrc={src}
           setDuration={setDuration}
           setPlaybackRate={setPlaybackRate}
+          isPlaying={isPlaying}
         />
 
         {settings && (
-          <button
-            className="flex items-center justify-center "
+          <Button
+            variant={"ghost"}
+            size={"icon"}
+
             onClick={() => {
               setShowSettingsPanel(!showSettingsPanel);
             }}
           >
             <Settings2Icon className="w-4 h-4" />
-          </button>
+          </Button>
         )}
       </div>
 
