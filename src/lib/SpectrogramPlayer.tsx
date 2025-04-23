@@ -71,7 +71,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
           playheadModeInitial={playheadModeInitial}
         >
           <SpectrogramGraphics
-            sxx={sxx}
+            spectrogramData={sxx}
             n_fft={n_fft}
             win_length={win_length}
             hop_length={hop_length}

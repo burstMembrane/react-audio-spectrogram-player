@@ -35,7 +35,7 @@ function min(arr: Float32Array[]) {
 }
 
 interface SpectrogramGraphicsProps {
-  sxx?: number[][];
+  spectrogramData?: number[][];
   n_fft?: number;
   win_length?: number;
   hop_length?: number;
@@ -57,7 +57,7 @@ interface SpectrogramGraphicsProps {
 
 function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   const {
-    sxx = undefined,
+    spectrogramData = undefined,
     n_fft = 1024,
     win_length = 400,
     hop_length = 160,
@@ -161,7 +161,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   }, [loadingState, dark, specHeight]);
 
   useEffect(() => {
-    if (sxx !== undefined) {
+    if (spectrogramData !== undefined) {
       setLoadingState('ready');
       return;
     }
@@ -180,14 +180,14 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         console.error("Failed to initialize WASM:", error);
         setLoadingState('ready'); // Even on error, we move to ready state to avoid infinite loading
       });
-  }, [sxx, audioSamples]);
+  }, [spectrogramData, audioSamples]);
 
   useEffect(() => {
-    if (sxx !== undefined) {
-      // for backwards compatibility, where user could specify sxx as a number[][] array
+    if (spectrogramData !== undefined) {
+      // for backwards compatibility, where user could specify spectrogramData as a number[][] array
       setSpec(
-        sxx[0].map(
-          (_, colIndex) => new Float32Array(sxx.map((row) => row[colIndex])),
+        spectrogramData[0].map(
+          (_, colIndex) => new Float32Array(spectrogramData.map((row) => row[colIndex])),
         ),
       );
       setLoadingState('ready');
@@ -233,7 +233,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
     f_max,
     n_mels,
     top_db,
-    sxx,
+    spectrogramData,
   ]);
 
   useEffect(() => {
@@ -257,7 +257,7 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   }, [spec, colormap, transparent]);
 
   useEffect(() => {
-    // Loads the spectrogram (sxx) onto a canvas when either the spectrogram or canvas changes
+    // Loads the spectrogram (spectrogramData) onto a canvas when either the spectrogram or canvas changes
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext("2d");
       if (ctx) {
@@ -269,13 +269,6 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
 
   const spectrogramContent = <SpectrogramContent dataURL={dataURL} playheadColor={playheadColor} playheadWidth={playheadWidth} />;
 
-  // Create loading content component only when in a loading state and we have a data URL
-  const getLoadingContent = () => {
-    if (loadingState !== 'ready' && loadingDataURL) {
-      return <SpectrogramContent dataURL={loadingDataURL} playheadColor="transparent" playheadWidth={0} />;
-    }
-    return spectrogramContent;
-  };
 
   return (
     <>
