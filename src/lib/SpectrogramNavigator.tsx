@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { usePlayback } from "./PlaybackProvider";
-import { useTheme } from "./ThemeProvider";
-import { useZoom } from "./ZoomProvider";
+import { usePlayback } from "@/lib/PlaybackProvider";
+import { useTheme } from "@/lib/ThemeProvider";
+import { useZoom } from "@/lib/ZoomProvider";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
 interface SpectrogramNavigatorProps {

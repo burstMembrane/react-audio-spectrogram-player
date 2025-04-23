@@ -7,15 +7,7 @@ import src from "./assets/audio_peggy.mp3";
 
 function App() {
   return (
-    <div
-      style={{
-        maxWidth: "100vw",
-        marginTop: 40,
-        marginLeft: "auto",
-        marginRight: "auto",
-        width: "90vw",
-      }}
-    >
+    <div className="max-w-screen-lg mx-auto mt-5">
       <SpectrogramPlayer
         src={src}
         sampleRate={16000}

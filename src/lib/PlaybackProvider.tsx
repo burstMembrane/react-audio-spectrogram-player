@@ -7,8 +7,105 @@ import {
   SetStateAction,
   Dispatch,
 } from "react";
-import { useTheme } from "./ThemeProvider";
+import { useTheme } from "@/lib/ThemeProvider";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { Pause, Play, Settings2Icon } from "lucide-react";
+
+type AudioControlsProps = {
+  audioRef: React.RefObject<HTMLAudioElement>;
+  isLoadingAudio: boolean;
+  audioError: Error | null;
+  duration: number | null;
+  currentTime: number;
+  setCurrentTime: (newTime: number) => void;
+  playbackRate: number;
+  dark: boolean;
+  audioSrc: string;
+  setDuration: Dispatch<SetStateAction<number | null>>;
+  setPlaybackRate: (newTime: number) => void;
+};
+
+function AudioControls({
+  audioRef,
+  isLoadingAudio,
+  audioError,
+  duration,
+  currentTime,
+  setCurrentTime,
+  playbackRate,
+}: AudioControlsProps) {
+  return (
+
+    <div className="w-full flex justify-center items-center gap-4">
+
+      {isLoadingAudio ? (
+        <div>
+          Loading audio...
+        </div>
+      ) : audioError ? (
+        <div>
+          Error loading audio
+        </div>
+      ) : (
+        <>
+          <button
+            onClick={() => {
+              const audio = audioRef.current;
+              if (audio) {
+                audio.paused ? audio.play() : audio.pause();
+              }
+            }}
+            disabled={isLoadingAudio || !!audioError}
+          >
+            {audioRef.current?.paused === false ? (
+              <Pause className="w-4 h-4" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+          </button>
+          <div className="ml-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">
+            {currentTime ? `${formatTime(currentTime)}` : "0:00"}
+          </div>
+          {/* progress bar */}
+          <div className="flex flex-1 items-center px-2">
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              value={currentTime}
+              step="0.01"
+              className="w-full h-1.5 appearance-none rounded-full bg-neutral-300 dark:bg-neutral-700 cursor-pointer
+      [&::-webkit-slider-thumb]:appearance-none
+      [&::-webkit-slider-thumb]:h-3
+      [&::-webkit-slider-thumb]:w-3
+      [&::-webkit-slider-thumb]:rounded-full
+      [&::-webkit-slider-thumb]:bg-neutral-600
+      [&::-webkit-slider-thumb]:dark:bg-neutral-400
+      [&::-moz-range-thumb]:h-3
+      [&::-moz-range-thumb]:w-3
+      [&::-moz-range-thumb]:rounded-full  
+      [&::-moz-range-thumb]:bg-neutral-600"
+              onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
+              disabled={isLoadingAudio || !!audioError}
+            />
+          </div>
+          {/* time display */}
+          <div className="ml-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">
+            {duration ? `${formatTime(duration)}` : "0:00"}
+          </div>
+          {/* playback rate display */}
+          <div className="text-sm dark:text-neutral-400">
+            {`${playbackRate.toFixed(1)}x`}
+          </div>
+        </>
+      )
+      }
+    </div >
+
+
+  );
+}
+
 
 export type PlaybackContextType = {
   duration: number | null;
@@ -96,9 +193,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   const { dark } = useTheme();
   const [sampleRateState, setSampleRate] = useState<number>(requestedSampleRate);
 
-  const theme = dark ? "dark" : "light";
 
-  // Use React Query to fetch and decode audio
   const {
     data: audioData,
     error: audioError,
@@ -248,313 +343,44 @@ function PlaybackProvider(props: PlaybackProviderProps) {
       }}
     >
       {children}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "stretch",
-          gap: 8,
-          marginTop: 10,
-          borderRadius: 8,
-          overflow: "hidden",
-          backgroundColor: dark ? "rgba(30, 30, 35, 0.7)" : "rgba(245, 245, 250, 0.7)",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          boxShadow: dark
-            ? "0 4px 12px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1)"
-            : "0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)"
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            padding: 12,
-          }}
+      <div className="w-full flex justify-center items-center gap-4">
+        <audio
+          ref={audioRef}
+          className="hidden"
+          onTimeUpdate={onTimeUpdate}
+          onDurationChange={onDurationChange}
+          onRateChange={onRateChange}
+          controlsList="nodownload"
         >
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              position: "relative",
-              height: 36,
-              borderRadius: 6,
-              overflow: "hidden",
-              backgroundColor: dark ? "rgba(20, 20, 25, 0.4)" : "rgba(230, 230, 235, 0.4)",
-              padding: "0 2px",
+          <source src={src} />
+        </audio>
+        <AudioControls
+          audioRef={audioRef}
+          isLoadingAudio={isLoadingAudio}
+          audioError={audioError as Error | null}
+          duration={duration}
+          currentTime={currentTime}
+          setCurrentTime={setCurrentTime}
+          playbackRate={playbackRate}
+          dark={dark}
+          audioSrc={src}
+          setDuration={setDuration}
+          setPlaybackRate={setPlaybackRate}
+        />
+
+        {settings && (
+          <button
+            className="flex items-center justify-center "
+            onClick={() => {
+              setShowSettingsPanel(!showSettingsPanel);
             }}
           >
-            <audio
-              ref={audioRef}
-              style={{
-                position: "absolute",
-                opacity: 0, // Hide the audio element visually
-                width: "100%",
-                height: "100%",
-              }}
-              onTimeUpdate={onTimeUpdate}
-              onDurationChange={onDurationChange}
-              onRateChange={onRateChange}
-              controlsList="nodownload"
-            >
-              <source src={src} />
-            </audio>
-
-            {/* Loading indicator */}
-            {isLoadingAudio ? (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-                fontSize: 12,
-                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              }}>
-                Loading audio...
-              </div>
-            ) : audioError ? (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "100%",
-                color: "#e74c3c",
-                fontSize: 12,
-                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              }}>
-                Error loading audio
-              </div>
-            ) : (
-              <>
-                {/* Custom audio controls */}
-                <button
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 32,
-                    height: 32,
-                    margin: "2px 4px",
-                    borderRadius: 5,
-                    backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
-                    color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-                    transition: "background-color 0.15s ease",
-                  }}
-                  onClick={() => {
-                    if (audioRef.current) {
-                      if (audioRef.current.paused) {
-                        audioRef.current.play();
-                      } else {
-                        audioRef.current.pause();
-                      }
-                    }
-                  }}
-                  disabled={isLoadingAudio || !!audioError}
-                >
-                  {audioRef.current && !audioRef.current.paused ? (
-                    // Pause icon
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="6" y="4" width="4" height="16" />
-                      <rect x="14" y="4" width="4" height="16" />
-                    </svg>
-                  ) : (
-                    // Play icon
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none" />
-                    </svg>
-                  )}
-                </button>
-
-                {/* Time display */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  marginLeft: 4,
-                  fontSize: 12,
-                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-                  color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-                  minWidth: 80,
-                }}>
-                  {duration ? (
-                    `${formatTime(currentTime)} / ${formatTime(duration)}`
-                  ) : "0:00 / 0:00"}
-                </div>
-
-                {/* Time slider */}
-                <div style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0 8px",
-                }}>
-                  <input
-                    type="range"
-                    min="0"
-                    max={duration || 0}
-                    value={currentTime}
-                    step="0.01"
-                    style={{
-                      width: "100%",
-                      height: 4,
-                      borderRadius: 2,
-                      appearance: "none",
-                      backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-                      outline: "none",
-                      transition: "height 0.15s ease",
-                      cursor: "pointer",
-                    }}
-                    onChange={(e) => {
-                      const time = parseFloat(e.target.value);
-                      setCurrentTime(time);
-                    }}
-                    disabled={isLoadingAudio || !!audioError}
-                  />
-                </div>
-
-                {/* Playback rate display */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  fontSize: 12,
-                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-                  color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-                  marginRight: 4,
-                }}>
-                  {`${playbackRate.toFixed(1)}x`}
-                </div>
-              </>
-            )}
-          </div>
-
-          {settings && (
-            <button
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 36,
-                height: 36,
-                borderRadius: 6,
-                backgroundColor: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
-                color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-                transition: "background-color 0.15s ease",
-              }}
-              onClick={() => {
-                setShowSettingsPanel(!showSettingsPanel);
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        {settings && showSettingsPanel && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 3fr",
-              columnGap: 8,
-              rowGap: 8,
-              padding: "5px 12px 12px 12px",
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-              fontSize: 13,
-              backgroundColor: dark ? "rgba(20, 20, 25, 0.3)" : "rgba(230, 230, 235, 0.3)",
-              borderTop: dark ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(0, 0, 0, 0.05)",
-            }}
-          >
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-              fontWeight: 500
-            }}>
-              Playback Speed
-            </div>
-            <div style={{ display: "flex", flexDirection: "row", gap: 8, alignItems: "center" }}>
-              <input
-                type="range"
-                min="0.1"
-                max="2.0"
-                value={playbackRate}
-                step="0.1"
-                style={{
-                  flex: 1,
-                  height: 4,
-                  borderRadius: 2,
-                  appearance: "none",
-                  backgroundColor: dark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-                onChange={(e) => {
-                  setPlaybackRate(Number(e.target.value));
-                }}
-                disabled={isLoadingAudio || !!audioError}
-              />
-              <div style={{
-                minWidth: 36,
-                textAlign: "right",
-                color: dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-              }}>
-                {`${playbackRate.toFixed(1)}x`}
-              </div>
-            </div>
-
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              color: dark ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)",
-              fontWeight: 500
-            }}>
-              Playhead Mode
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-                gridTemplateRows: `repeat(${gridRows}, 1fr)`,
-                gap: 4,
-              }}
-            >
-              {playheadModes.map((modeName) => (
-                <div
-                  key={modeName}
-                  style={{
-                    padding: "4px 8px",
-                    textAlign: "center",
-                    cursor: "pointer",
-                    borderRadius: 4,
-                    backgroundColor: mode === modeName
-                      ? (dark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)")
-                      : (dark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)"),
-                    color: mode === modeName
-                      ? (dark ? "rgba(255, 255, 255, 1)" : "rgba(0, 0, 0, 0.9)")
-                      : (dark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)"),
-                    fontWeight: mode === modeName ? 500 : 400,
-                    transition: "all 0.15s ease",
-                  }}
-                  onClick={() => {
-                    setMode(modeName);
-                  }}
-                  title={modeName === "scrub"
-                    ? "Keeps the playhead fixed in the center with the audio scrolling underneath - best for reducing motion sickness"
-                    : modeName}
-                >
-                  {modeName.charAt(0).toUpperCase() + modeName.slice(1)}
-                </div>
-              ))}
-            </div>
-          </div>
+            <Settings2Icon className="w-4 h-4" />
+          </button>
         )}
       </div>
-    </PlaybackContext.Provider>
+
+    </PlaybackContext.Provider >
   );
 }
 
@@ -568,4 +394,3 @@ function formatTime(time: number): string {
 }
 
 export default PlaybackProvider;
-

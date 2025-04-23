@@ -1,7 +1,7 @@
 import SpectrogramGraphics from "./SpectrogramGraphics";
 import PlaybackProvider from "./PlaybackProvider";
 import ThemeProvider from "./ThemeProvider";
-import "./SpectrogramPlayer.css";
+
 import { Annotations } from "./Annotation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense } from "react";

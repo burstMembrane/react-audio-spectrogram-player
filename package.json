@@ -47,13 +47,20 @@
     ]
   },
   "dependencies": {
+    "@radix-ui/react-progress": "^1.1.4",
+    "@tailwindcss/vite": "^4.1.4",
     "@tanstack/query-sync-storage-persister": "^5.74.6",
     "@tanstack/react-query": "^5.74.4",
     "@tanstack/react-query-persist-client": "^5.74.6",
     "@vitejs/plugin-react": "^4.4.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "colormap": "^2.3.2",
     "lucide-react": "^0.503.0",
-    "rust-melspec-wasm": "^0.1.0-alpha.1"
+    "rust-melspec-wasm": "^0.1.0-alpha.1",
+    "tailwind-merge": "^3.2.0",
+    "tailwindcss": "^4.1.4",
+    "tw-animate-css": "^1.2.8"
   },
   "devDependencies": {
     "@types/colormap": "^2.3.1",

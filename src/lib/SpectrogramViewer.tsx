@@ -1,6 +1,6 @@
 import { useRef } from "react";
-import { usePlayback } from "./PlaybackProvider";
-import { useZoom } from "./ZoomProvider";
+import { usePlayback } from "@/lib/PlaybackProvider";
+import { useZoom } from "@/lib/ZoomProvider";
 
 interface SpectrogramViewerProps {
   children: JSX.Element;

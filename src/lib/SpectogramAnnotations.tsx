@@ -1,8 +1,7 @@
-import { useRef, useState, useLayoutEffect } from "react";
-import { useZoom } from "./ZoomProvider";
-import { Fragment } from "react";
-import { useTheme } from "./ThemeProvider";
-import { Annotations } from "./Annotation";
+import { useRef, useState, useLayoutEffect, Fragment } from "react";
+import { useZoom } from "@/lib/ZoomProvider";
+import { useTheme } from "@/lib/ThemeProvider";
+import { Annotations } from "@/lib/Annotation";
 
 const DEFAULT_HEIGHT = 20;
 const DEFAULT_STROKE_WIDTH = 1;

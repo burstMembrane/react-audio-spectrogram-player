@@ -6,7 +6,7 @@ import {
   SetStateAction,
   Dispatch,
 } from "react";
-import { usePlayback } from "./PlaybackProvider";
+import { usePlayback } from "@/lib/PlaybackProvider";
 
 export type ZoomContextType = {
   startTime: number;

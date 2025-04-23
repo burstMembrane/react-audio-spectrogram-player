@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
-import { usePlayback } from "./PlaybackProvider";
-import { useZoom } from "./ZoomProvider";
+import { usePlayback } from "@/lib/PlaybackProvider";
+import { useZoom } from "@/lib/ZoomProvider";
 
 interface SpectrogramContentProps {
   dataURL: string;

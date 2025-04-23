@@ -1,3 +1,3 @@
-import SpectrogramPlayer from "./SpectrogramPlayer";
+import SpectrogramPlayer from "@/lib/SpectrogramPlayer";
 
 export default SpectrogramPlayer;

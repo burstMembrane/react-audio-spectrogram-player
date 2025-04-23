@@ -4,7 +4,8 @@ import react from "@vitejs/plugin-react";
 import dts from "vite-plugin-dts";
 import cssInjectedByJsPlugin from "vite-plugin-css-injected-by-js";
 import wasm from "vite-plugin-wasm";
-
+// @ts-ignore
+import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   build: {
     minify: false,
@@ -23,7 +24,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react(), dts(), cssInjectedByJsPlugin(), wasm()],
+  plugins: [react(), dts(), cssInjectedByJsPlugin(), wasm(), tailwindcss()],
   server: {
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
@@ -32,5 +33,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["rust-melspec-wasm"], // replace with your wasm package name
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
 });
