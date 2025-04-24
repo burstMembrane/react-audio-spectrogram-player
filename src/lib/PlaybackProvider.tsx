@@ -6,6 +6,7 @@ import {
   useContext,
   SetStateAction,
   Dispatch,
+  useCallback,
 } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Settings2Icon, Repeat } from "lucide-react";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils";
+import { useZoom } from "@/lib/ZoomProvider";
 
 type AudioControlsProps = {
   audioRef: React.RefObject<HTMLAudioElement>;
@@ -33,6 +35,8 @@ type AudioControlsProps = {
   isPlaying: boolean;
   mode: string;
   setMode: (mode: string) => void;
+  handleButtonClick: () => void;
+  backend: "html5" | "webaudio";
 };
 
 const PlayFilled = ({ className }: { className: string }) => (
@@ -62,6 +66,8 @@ function AudioControls({
   isPlaying,
   mode,
   setMode,
+  handleButtonClick,
+  backend,
 }: AudioControlsProps) {
   const [previousMode, setPreviousMode] = useState<string>("continue");
   const [isLoopEnabled, setIsLoopEnabled] = useState(mode === "loop");
@@ -89,12 +95,7 @@ function AudioControls({
       <Button
         variant="bare"
         size="sm"
-        onClick={() => {
-          const audio = audioRef.current;
-          if (audio) {
-            audio.paused ? audio.play() : audio.pause();
-          }
-        }}
+        onClick={handleButtonClick}
         disabled={isLoadingAudio || !!audioError}
       >
         {isPlaying ? (
@@ -133,6 +134,10 @@ function AudioControls({
       >
         <Repeat className="w-4 h-4" />
       </Button>
+
+      <div className="text-xs text-neutral-400 dark:text-neutral-500 hidden md:block">
+        {backend === "webaudio" ? "WebAudio" : "HTML5 Audio"}
+      </div>
     </div>
   );
 }
@@ -156,6 +161,7 @@ export type PlaybackContextType = {
   audioSrc: string;
   isLoadingAudio: boolean;
   audioError: Error | null;
+  backend: "html5" | "webaudio";
 };
 
 export const PlaybackContext = createContext<PlaybackContextType>({
@@ -174,7 +180,7 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   audioSrc: "",
   isLoadingAudio: false,
   audioError: null,
-
+  backend: "html5",
 });
 
 export function usePlayback() {
@@ -191,6 +197,9 @@ export type PlaybackProviderProps = {
   playbackSpeedInitial?: number;
   playheadModeInitial?: string;
   isLooping?: boolean;
+  backend?: "html5" | "webaudio";
+  zoomStartTime?: number;
+  zoomEndTime?: number;
 };
 
 const CURRENT_TIME_UPDATE_INTERVAL = 10;
@@ -219,6 +228,9 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     playbackSpeedInitial = 1.0,
     playheadModeInitial = "page",
     controls = true,
+    backend = "html5",
+    zoomStartTime,
+    zoomEndTime,
   } = props;
 
   const settings = props.settings ? true : false;
@@ -266,6 +278,9 @@ function PlaybackProvider(props: PlaybackProviderProps) {
 
 
   });
+
+  // Add zoom context to get the startTime and endTime values
+  const { startTime, endTime } = useZoom();
 
   // Audio player functionality
   useEffect(() => {
@@ -420,14 +435,16 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   };
 
-  const setCurrentTime = (newTime: number) => {
+  // Renamed to avoid redeclaration with the state setter
+  const updateCurrentTime = (newTime: number) => {
     if (audioRef.current !== null) {
       audioRef.current.currentTime = newTime;
     }
     _setCurrentTime(newTime);
   };
 
-  const setPlaybackRate = (newRate: number) => {
+  // Renamed to avoid redeclaration with the event handler
+  const updatePlaybackRate = (newRate: number) => {
     if (audioRef.current !== null) {
       audioRef.current.playbackRate = newRate;
     }
@@ -489,6 +506,288 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   }, [mode]);
 
+  // Add WebAudio API specific references
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pausedAtRef = useRef<number>(0);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+
+  // Initialize or reset WebAudio API context
+  const initializeWebAudio = useCallback(async () => {
+    if (backend !== "webaudio") return;
+
+    try {
+      // Clean up previous context if exists
+      if (audioContextRef.current) {
+        await audioContextRef.current.close();
+      }
+
+      // Create new audio context
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const context = new AudioContextClass({
+        sampleRate: requestedSampleRate,
+      });
+      audioContextRef.current = context;
+
+      // Create gain node for volume control
+      const gainNode = context.createGain();
+      gainNode.gain.value = 1.0;
+      gainNode.connect(context.destination);
+      gainNodeRef.current = gainNode;
+
+      // If we already have audio buffer data, set it up
+      if (audioData?.samples && audioData.sampleRate) {
+        setupWebAudioBuffer();
+      }
+    } catch (error) {
+      console.error("Failed to initialize WebAudio API:", error);
+      // Fall back to HTML5 audio
+      setBackendState("html5");
+    }
+  }, [backend, requestedSampleRate]);
+
+  // Function to create and setup audio buffer
+  const setupWebAudioBuffer = useCallback(() => {
+    if (backend !== "webaudio" || !audioContextRef.current || !audioData?.samples) return;
+
+    try {
+      const { samples, sampleRate } = audioData;
+      const context = audioContextRef.current;
+
+      // Create an audio buffer with the decoded audio data
+      const audioBuffer = context.createBuffer(1, samples.length, sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+
+      // Copy the samples to the buffer
+      for (let i = 0; i < samples.length; i++) {
+        channelData[i] = samples[i];
+      }
+
+      audioBufferRef.current = audioBuffer;
+    } catch (error) {
+      console.error("Failed to setup WebAudio buffer:", error);
+    }
+  }, [backend, audioData]);
+
+  // WebAudio play function
+  const playWebAudio = useCallback((startFrom: number = currentTime) => {
+    if (backend !== "webaudio" || !audioContextRef.current || !audioBufferRef.current || !gainNodeRef.current) {
+      return;
+    }
+
+    try {
+      const context = audioContextRef.current;
+
+      // If the context is suspended (e.g., after user interaction required), resume it
+      if (context.state === 'suspended') {
+        context.resume();
+      }
+
+      // Stop previous playback if any
+      if (sourceNodeRef.current) {
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current.disconnect();
+      }
+
+      // Create a new source node
+      const sourceNode = context.createBufferSource();
+      sourceNode.buffer = audioBufferRef.current;
+      sourceNode.connect(gainNodeRef.current);
+
+      // Set playback rate
+      sourceNode.playbackRate.value = playbackRate;
+
+      // Calculate offset from the current time
+      const offset = Math.max(0, startFrom);
+
+      // Remember when we started playing and from what position
+      startTimeRef.current = context.currentTime;
+      pausedAtRef.current = offset;
+
+      // Set up looping if needed
+      if (mode === "loop") {
+        // Use the zoom window boundaries for looping
+        const loopStart = startTime;
+        // Make sure endTime is valid and not beyond audio duration
+        const loopEnd = Math.min(endTime, duration || audioBufferRef.current.duration);
+
+        // Only set loop if browser supports it and if loop region is valid
+        if (loopEnd > loopStart) {
+          sourceNode.loop = true;
+
+          // Check if browser supports loop points
+          if ('loopStart' in sourceNode) {
+            sourceNode.loopStart = loopStart;
+            sourceNode.loopEnd = loopEnd;
+          }
+        }
+      } else {
+        sourceNode.loop = false;
+      }
+
+      // Start playback from the offset
+      sourceNode.start(0, offset);
+      sourceNodeRef.current = sourceNode;
+
+      // Handle end of playback
+      sourceNode.onended = () => {
+        if (mode === "loop" && isPlaying) {
+          // If it's still supposed to be looping, restart at loop start point
+          playWebAudio(startTime);
+        } else {
+          setIsPlaying(false);
+        }
+      };
+
+      setIsPlaying(true);
+    } catch (error) {
+      console.error("Failed to play audio using WebAudio API:", error);
+      // Fall back to HTML5 audio
+      setBackendState("html5");
+      if (audioRef.current) {
+        audioRef.current.play();
+      }
+    }
+  }, [audioBufferRef.current, currentTime, playbackRate, mode, duration, isPlaying, startTime, endTime]);
+
+  // WebAudio pause function
+  const pauseWebAudio = useCallback(() => {
+    if (backend !== "webaudio" || !sourceNodeRef.current || !audioContextRef.current) {
+      return;
+    }
+
+    try {
+      // Stop the current source node
+      sourceNodeRef.current.stop();
+
+      // Calculate where we paused
+      const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
+      pausedAtRef.current = pausedAtRef.current + elapsed;
+
+      setIsPlaying(false);
+    } catch (error) {
+      console.error("Failed to pause WebAudio playback:", error);
+    }
+  }, [backend]);
+
+  // WebAudio seek function
+  const seekWebAudio = useCallback((newTime: number) => {
+    if (backend !== "webaudio") return;
+
+    pausedAtRef.current = newTime;
+
+    if (isPlaying) {
+      // If already playing, stop and restart from new position
+      pauseWebAudio();
+      playWebAudio(newTime);
+    }
+
+    _setCurrentTime(newTime);
+  }, [backend, isPlaying, playWebAudio, pauseWebAudio]);
+
+  // Add state for tracking which backend is actually in use
+  const [backendState, setBackendState] = useState<"html5" | "webaudio">(backend);
+
+  // Initialize WebAudio on component mount
+  useEffect(() => {
+    if (backend === "webaudio") {
+      initializeWebAudio();
+    } else {
+      setBackendState("html5");
+    }
+
+    return () => {
+      // Clean up WebAudio context on unmount
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, [backend, initializeWebAudio]);
+
+  // Update audio buffer when audio data changes
+  useEffect(() => {
+    if (backend === "webaudio" && audioData) {
+      setupWebAudioBuffer();
+    }
+  }, [backend, audioData, setupWebAudioBuffer]);
+
+  // Update WebAudio currentTime tracking
+  useEffect(() => {
+    if (backend !== "webaudio" || !isPlaying || !audioContextRef.current) return;
+
+    const updateInterval = setInterval(() => {
+      if (!audioContextRef.current || !isPlaying || !sourceNodeRef.current) return;
+
+      // Calculate current playback position
+      const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
+      const currentPos = pausedAtRef.current + elapsed * playbackRate;
+
+      // Update the UI position
+      _setCurrentTime(currentPos);
+
+      // Check if we need to loop
+      if (mode === "loop" && currentPos >= endTime) {
+        // Manual loop implementation
+        seekWebAudio(startTime);
+      } else if (currentPos >= (duration || 0)) {
+        // End of audio
+        pauseWebAudio();
+      }
+    }, 30); // ~30fps updates
+
+    return () => clearInterval(updateInterval);
+  }, [backend, isPlaying, playbackRate, mode, startTime, endTime, duration, seekWebAudio, pauseWebAudio]);
+
+  // Unified toggle function that works with both backends
+  const togglePlayPause = useCallback(() => {
+    if (backendState === "webaudio") {
+      if (isPlaying) {
+        pauseWebAudio();
+      } else {
+        playWebAudio();
+      }
+    } else {
+      // HTML5 Audio
+      if (audioRef.current) {
+        if (audioRef.current.paused) {
+          setIsPlaying(true);
+          audioRef.current.play().catch(err => {
+            console.error("Failed to play audio:", err);
+            setIsPlaying(false);
+          });
+        } else {
+          setIsPlaying(false);
+          audioRef.current.pause();
+        }
+      }
+    }
+  }, [backendState, isPlaying, pauseWebAudio, playWebAudio]);
+
+  // Unified seek function
+  const setCurrentTime = useCallback((newTime: number) => {
+    if (backendState === "webaudio") {
+      seekWebAudio(newTime);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+      _setCurrentTime(newTime);
+    }
+  }, [backendState, seekWebAudio]);
+
+  // Unified playback rate function
+  const setPlaybackRate = useCallback((newRate: number) => {
+    _setPlaybackRate(newRate);
+
+    if (backendState === "webaudio") {
+      if (sourceNodeRef.current) {
+        sourceNodeRef.current.playbackRate.value = newRate;
+      }
+    } else if (audioRef.current) {
+      audioRef.current.playbackRate = newRate;
+    }
+  }, [backendState]);
+
   return (
     <PlaybackContext.Provider
       value={{
@@ -501,46 +800,49 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         setDuration,
         setCurrentTime,
         setPlaybackRate,
-        pause,
+        pause: isPlaying ? togglePlayPause : () => { }, // Use the unified toggle for pause
+        isPlaying,
         audioSamples: audioData?.samples || new Float32Array(0),
-        isPlaying: isPlaying,
         audioSrc: src,
         isLoadingAudio,
         audioError: audioError as Error | null,
+        backend: backendState, // Expose which backend is in use
       }}
     >
       {children}
       <div className="w-full flex justify-center items-center gap-4">
+        {/* Only render audio element if using HTML5 backend */}
+        {backendState === "html5" && (
+          <audio
+            ref={audioRef}
+            className="hidden"
+            onTimeUpdate={onTimeUpdate}
+            onDurationChange={onDurationChange}
+            onRateChange={onRateChange}
+            controlsList="nodownload"
+            preload="auto"
+          >
+            <source src={src} />
+          </audio>
+        )}
 
-        <audio
-          ref={audioRef}
-          className="hidden"
-          onTimeUpdate={onTimeUpdate}
-          onDurationChange={onDurationChange}
-          onRateChange={onRateChange}
-          controlsList="nodownload"
-
-        >
-          <source src={src} />
-        </audio>
-        {controls &&
-          <AudioControls
-
-            audioRef={audioRef}
-            isLoadingAudio={isLoadingAudio}
-            audioError={audioError as Error | null}
-            duration={duration}
-            currentTime={currentTime}
-            setCurrentTime={setCurrentTime}
-            playbackRate={playbackRate}
-            audioSrc={src}
-            setDuration={setDuration}
-            setPlaybackRate={setPlaybackRate}
-            isPlaying={isPlaying}
-            mode={mode}
-            setMode={setMode}
-          />
-        }
+        <AudioControls
+          audioRef={audioRef}
+          isLoadingAudio={isLoadingAudio}
+          audioError={audioError as Error | null}
+          duration={duration}
+          currentTime={currentTime}
+          setCurrentTime={setCurrentTime}
+          playbackRate={playbackRate}
+          audioSrc={src}
+          setDuration={setDuration}
+          setPlaybackRate={setPlaybackRate}
+          isPlaying={isPlaying}
+          mode={mode}
+          setMode={setMode}
+          handleButtonClick={togglePlayPause}
+          backend={backendState}
+        />
 
         {settings &&
           settingsPanel({
@@ -551,8 +853,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
           })
         }
       </div>
-
-    </PlaybackContext.Provider >
+    </PlaybackContext.Provider>
   );
 }
 

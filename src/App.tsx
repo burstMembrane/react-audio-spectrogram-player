@@ -30,6 +30,7 @@ function App() {
         controls={true}
         transparent={true}
         dark={true}
+        backend="webaudio"
       />
     </div>
   );

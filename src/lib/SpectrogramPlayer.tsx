@@ -50,6 +50,7 @@ interface SpectrogramPlayerProps {
   dark?: boolean;
   playheadColor?: string;
   playheadWidth?: number;
+  backend?: "webaudio" | "html5";
 }
 function Loading() {
   return (
@@ -90,6 +91,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
     transparent = false,
     playheadColor = "white",
     playheadWidth = 0.005,
+    backend = "html5",
   } = props;
 
 
@@ -108,6 +110,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
             playbackSpeedInitial={playbackSpeedInitial}
             playheadModeInitial={playheadModeInitial}
             controls={controls}
+            backend={backend}
           >
             <SpectrogramGraphics
               spectrogramData={spectrogramData}
