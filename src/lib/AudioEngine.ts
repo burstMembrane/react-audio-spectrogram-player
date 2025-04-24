@@ -1,3 +1,79 @@
+import { useState, useEffect } from 'react';
+
+/**
+ * Custom event system to bridge the audio engine with React
+ */
+export class AudioEngineEvents {
+    private listeners: { [key: string]: Set<(value: any) => void> } = {};
+
+    addEventListener(event: string, callback: (value: any) => void) {
+        if (!this.listeners[event]) {
+            this.listeners[event] = new Set();
+        }
+        this.listeners[event].add(callback);
+        return () => this.removeEventListener(event, callback);
+    }
+
+    removeEventListener(event: string, callback: (value: any) => void) {
+        if (this.listeners[event]) {
+            this.listeners[event].delete(callback);
+        }
+    }
+
+    dispatchEvent(event: string, value: any) {
+        if (this.listeners[event]) {
+            for (const callback of this.listeners[event]) {
+                callback(value);
+            }
+        }
+    }
+}
+
+/**
+ * Hook that listens to audio engine state via events instead of polling.
+ * This provides a reactive, efficient way to keep React state in sync with the engine.
+ * 
+ * @param audioEngineRef Reference to the audio engine
+ * @param eventsRef Reference to the events manager
+ * @param engineInitialized Whether the engine has been initialized
+ * @returns Current playing state from the engine
+ */
+export function useIsPlaying(
+    audioEngineRef: React.RefObject<AudioEngine | null>,
+    eventsRef: React.RefObject<AudioEngineEvents | null>,
+    engineInitialized: boolean
+) {
+    // Local state to track playing status
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    // Set up event listeners when the engine is initialized
+    useEffect(() => {
+        if (!engineInitialized || !eventsRef.current) return;
+
+        // Initial state from engine
+        if (audioEngineRef.current) {
+            setIsPlaying(audioEngineRef.current.isAudioPlaying());
+        }
+
+        // Subscribe to play/pause events
+        const removePlayListener = eventsRef.current.addEventListener('play', () => {
+            setIsPlaying(true);
+        });
+
+        const removePauseListener = eventsRef.current.addEventListener('pause', () => {
+            setIsPlaying(false);
+        });
+
+        return () => {
+            removePlayListener();
+            removePauseListener();
+        };
+    }, [engineInitialized, audioEngineRef, eventsRef]);
+
+    return isPlaying;
+}
+
+
 /**
  * Common interface for audio engine implementations
  */
@@ -147,6 +223,7 @@ export class HTML5AudioEngine implements AudioEngine {
                 console.log("[HTML5AudioEngine] Loop mode active, restarting from beginning");
                 this.play(0);
             } else if (this.onEndedCallback) {
+
                 this.onEndedCallback();
             }
         });

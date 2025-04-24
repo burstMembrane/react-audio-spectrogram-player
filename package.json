@@ -61,6 +61,7 @@
     "clsx": "^2.1.1",
     "colormap": "^2.3.2",
     "lucide-react": "^0.503.0",
+    "react-hotkeys-hook": "^5.0.1",
     "rust-melspec-wasm": "^0.1.0-alpha.1",
     "tailwind-merge": "^3.2.0",
     "tailwindcss": "^4.1.4",

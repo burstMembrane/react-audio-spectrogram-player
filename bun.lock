@@ -18,6 +18,7 @@
         "clsx": "^2.1.1",
         "colormap": "^2.3.2",
         "lucide-react": "^0.503.0",
+        "react-hotkeys-hook": "^5.0.1",
         "rust-melspec-wasm": "^0.1.0-alpha.1",
         "tailwind-merge": "^3.2.0",
         "tailwindcss": "^4.1.4",
@@ -482,6 +483,8 @@
     "react": ["react@19.1.0", "", {}, "sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg=="],
 
     "react-dom": ["react-dom@19.1.0", "", { "dependencies": { "scheduler": "^0.26.0" }, "peerDependencies": { "react": "^19.1.0" } }, "sha512-Xs1hdnE+DyKgeHJeJznQmYMIBG3TKIHJJT95Q58nHLSrElKlGQqDTR2HQ9fx5CN/Gk6Vh/kupBTDLU11/nDk/g=="],
+
+    "react-hotkeys-hook": ["react-hotkeys-hook@5.0.1", "", { "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-TysTwXrUSj6QclMZIEoxCfvy/6EsoZcrfE970aUVa9fO3c3vcms+IVjv3ljbhUPM/oY1iEoun7O2W8v8INl5hw=="],
 
     "react-refresh": ["react-refresh@0.17.0", "", {}, "sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ=="],
 

@@ -11,14 +11,14 @@ function App() {
       <SpectrogramPlayer
         src={src}
         sampleRate={16000}
-        n_fft={2048}
+        n_fft={4096}
         win_length={400}
         hop_length={160}
         f_min={0}
         f_max={12000.0}
         n_mels={128}
         top_db={120}
-        settings={false}
+        settings={true}
         navigator={false}
         playbackSpeedInitial={1.0}
         playheadModeInitial="scrub"
@@ -27,10 +27,10 @@ function App() {
         colormap="inferno"
         specHeight={600}
         navHeight={50}
-        controls={false}
+        controls={true}
         transparent={true}
         dark={true}
-        backend="html5"
+        backend="webaudio"
       />
     </div>
   );

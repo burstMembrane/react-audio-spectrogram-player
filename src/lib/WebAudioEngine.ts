@@ -71,21 +71,15 @@ export class WebAudioEngine implements AudioEngine {
             console.log("[WebAudioEngine] Setting up audio buffer");
             console.log(`[WebAudioEngine] Creating buffer with ${samples.length} samples at ${sampleRate}Hz`);
 
-            // Skip if we already have a buffer with the same length
             if (this.audioBuffer && this.audioBuffer.length === samples.length) {
                 console.log("[WebAudioEngine] Audio buffer already exists with same length, skipping recreation");
                 return true;
             }
-
-            // Create an audio buffer with the decoded audio data
             this.audioBuffer = this.context!.createBuffer(1, samples.length, sampleRate);
             const channelData = this.audioBuffer.getChannelData(0);
-
-            // Copy the samples to the buffer
             for (let i = 0; i < samples.length; i++) {
                 channelData[i] = samples[i];
             }
-
             console.log(`[WebAudioEngine] Audio buffer created successfully. Duration: ${this.audioBuffer.duration}s`);
             return true;
         } catch (error) {
@@ -133,12 +127,8 @@ export class WebAudioEngine implements AudioEngine {
         this.loopMode = enabled;
         this.loopStart = start;
         this.loopEnd = end;
+        console.log("[WebAudioEngine] Loop mode set to", enabled ? "true" : "false");
 
-        if (enabled) {
-            console.log("[WebAudioEngine] Loop mode enabled");
-        } else {
-            console.log("[WebAudioEngine] Loop mode disabled");
-        }
 
         // Update source node if already playing
         if (this.sourceNode) {
@@ -156,7 +146,7 @@ export class WebAudioEngine implements AudioEngine {
         }
 
         try {
-            console.log(`[WebAudioEngine] Attempting to play audio from position: ${startFrom}s`);
+            console.debug(`[WebAudioEngine] Attempting to play audio from position: ${startFrom}s`);
 
             // If the context is suspended (e.g., after user interaction required), resume it
             if (this.context.state === 'suspended') {
@@ -164,8 +154,11 @@ export class WebAudioEngine implements AudioEngine {
                 this.context.resume();
             }
 
-            // Stop previous playback if any
-            this.stopSourceNode();
+            // If already playing, stop current playback first
+            if (this.isPlaying) {
+                console.debug("[WebAudioEngine] Already playing, stopping current playback before restarting");
+                this.stopSourceNode();
+            }
 
             // Create a new source node
             this.sourceNode = this.context.createBufferSource();
@@ -174,12 +167,12 @@ export class WebAudioEngine implements AudioEngine {
 
             // Set playback rate
             this.sourceNode.playbackRate.value = this.playbackRate;
-            console.log(`[WebAudioEngine] Set playback rate to ${this.playbackRate}`);
+            console.debug(`[WebAudioEngine] Set playback rate to ${this.playbackRate}`);
 
             // Calculate offset from the current time
             const offset = Math.max(0, startFrom);
             const audioDuration = this.audioBuffer.duration;
-
+            console.log(`[WebAudioEngine] Start from offset: ${offset}s, startFrom: ${startFrom}s, audio duration: ${audioDuration}s`);
             // Safety check: don't try to start from beyond the end of the audio
             if (offset >= audioDuration) {
                 console.log(`[WebAudioEngine] Requested start position (${offset}s) is beyond audio duration (${audioDuration}s). Resetting to start.`);
@@ -189,32 +182,40 @@ export class WebAudioEngine implements AudioEngine {
                 this.pausedAt = offset;
             }
 
+            // Mark the start time for time calculations
             this.startTime = this.context.currentTime;
-            console.log(`[WebAudioEngine] Starting playback at context time ${this.context.currentTime}, offset ${this.pausedAt}s, audio duration: ${audioDuration}s`);
+            console.debug(`[WebAudioEngine] Starting playback at context time ${this.startTime}, offset ${this.pausedAt}s, audio duration: ${audioDuration}s`);
 
             // Apply basic loop setting (let PlaybackProvider handle custom ranges)
             this.sourceNode.loop = this.loopMode;
 
             console.log(`[WebAudioEngine] Starting playback from offset: ${this.pausedAt}s of ${audioDuration}s`);
 
+            // Set playing state before starting
+            this.isPlaying = true;
+
             // Start playback from the offset
             this.sourceNode.start(0, this.pausedAt);
-            this.isPlaying = true;
             console.log(`[WebAudioEngine] Playback started successfully from ${this.pausedAt}s`);
 
             // Handle end of playback
             this.sourceNode.onended = () => {
-                console.log("[WebAudioEngine] Source node playback ended");
-                if (this.isPlaying) {
-                    if (this.loopMode) {
-                        // If it's simple loop mode, just restart from the beginning
-                        console.log("[WebAudioEngine] Loop mode active, restarting from beginning");
-                        this.play(0);
-                    } else {
-                        console.log("[WebAudioEngine] Playback complete, stopping");
-                        this.isPlaying = false;
-                        if (this.onEndedCallback) {
-                            this.onEndedCallback();
+                // Check if this is a legitimate end (not from a seek operation)
+                if (this.sourceNode) {
+                    console.log("[WebAudioEngine] Source node playback ended");
+                    if (this.isPlaying) {
+                        if (this.loopMode) {
+                            // If it's simple loop mode, just restart from the beginning
+                            console.log("[WebAudioEngine] Loop mode active, restarting from beginning");
+                            this.play(0);
+                        } else {
+                            console.log("[WebAudioEngine] Playback complete, stopping");
+                            // Reset position to beginning when playback ends naturally
+                            this.pausedAt = 0;
+                            this.isPlaying = false;
+                            if (this.onEndedCallback) {
+                                this.onEndedCallback();
+                            }
                         }
                     }
                 }
@@ -226,6 +227,7 @@ export class WebAudioEngine implements AudioEngine {
             return true;
         } catch (error) {
             console.error("[WebAudioEngine] Failed to play audio:", error);
+            this.isPlaying = false;
             return false;
         }
     }
@@ -234,27 +236,33 @@ export class WebAudioEngine implements AudioEngine {
      * Pause playback
      */
     pause(): void {
-        if (!this.isPlaying || !this.context || !this.sourceNode) {
-            console.log("[WebAudioEngine] Cannot pause: not playing or missing components");
+        if (!this.isPlaying || !this.context) {
+            console.log("[WebAudioEngine] Cannot pause: not playing or missing context");
             return;
         }
 
         try {
             console.log("[WebAudioEngine] Pausing playback");
+
+            // Calculate where we paused before stopping the source
+            if (this.sourceNode && this.context) {
+                const elapsed = this.context.currentTime - this.startTime;
+                this.pausedAt = this.pausedAt + (elapsed * this.playbackRate);
+                console.log(`[WebAudioEngine] Paused at position: ${this.pausedAt}s (elapsed: ${elapsed}s)`);
+            }
+
             // Stop the current source node
             this.stopSourceNode();
 
-            // Calculate where we paused
-            const elapsed = this.context.currentTime - this.startTime;
-            this.pausedAt = this.pausedAt + (elapsed * this.playbackRate);
+            // Update state after operations are complete
             this.isPlaying = false;
-
-            console.log(`[WebAudioEngine] Paused at position: ${this.pausedAt}s (elapsed: ${elapsed}s)`);
 
             // Stop time update interval
             this.stopTimeUpdateInterval();
         } catch (error) {
             console.error("[WebAudioEngine] Failed to pause playback:", error);
+            // Ensure playback state is accurate even if there's an error
+            this.isPlaying = false;
         }
     }
 
@@ -264,15 +272,45 @@ export class WebAudioEngine implements AudioEngine {
     seek(newTime: number): void {
         console.log(`[WebAudioEngine] Seeking to position: ${newTime}s`);
 
+        // Store whether we're currently playing
         const wasPlaying = this.isPlaying;
-        this.pausedAt = Math.max(0, Math.min(newTime, this.getDuration()));
+
+        // Bound the seek time to valid range
+        const boundedTime = Math.max(0, Math.min(newTime, this.getDuration()));
+
+        // Update the pause position regardless of playback state
+        this.pausedAt = boundedTime;
 
         if (wasPlaying) {
             console.log("[WebAudioEngine] Currently playing, restarting from new position");
-            this.pause();
-            this.play(this.pausedAt);
+
+            // Store original isPlaying state
+            const originalIsPlaying = this.isPlaying;
+
+            try {
+                // Stop current playback without affecting isPlaying
+                if (this.sourceNode) {
+                    this.stopSourceNode();
+                }
+
+                // Start playback from new position while preserving isPlaying state
+                this.isPlaying = originalIsPlaying;
+
+                // Restart playback with a slight delay to avoid race conditions
+                setTimeout(() => {
+                    if (originalIsPlaying) {
+                        console.log(`[WebAudioEngine] Resuming playback at ${this.pausedAt}s after seek`);
+                        this.play(this.pausedAt);
+                    }
+                }, 20);
+            } catch (error) {
+                console.error("[WebAudioEngine] Error during seek while playing:", error);
+                // Restore original state on error
+                this.isPlaying = originalIsPlaying;
+            }
         } else {
             console.log("[WebAudioEngine] Not currently playing, updating position only");
+            // Just update position, no need to restart playback
         }
     }
 
@@ -352,6 +390,9 @@ export class WebAudioEngine implements AudioEngine {
     private stopSourceNode(): void {
         if (this.sourceNode) {
             try {
+                // Remove the onended handler temporarily to prevent false triggers during seek
+                this.sourceNode.onended = null;
+
                 this.sourceNode.stop();
                 this.sourceNode.disconnect();
             } catch (e) {

@@ -9,142 +9,14 @@ import {
   useCallback,
 } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Settings2Icon, Repeat } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils";
+;
+import { decodeAudioData, tryCatch } from "@/lib/utils";
+
+import { useHotkeys } from "react-hotkeys-hook";
 import { useZoom } from "@/lib/ZoomProvider";
-import { AudioEngine, createAudioEngine, AUDIO_ENGINE_UPDATE_INTERVAL_MS } from "@/lib/AudioEngine";
-
-type AudioControlsProps = {
-  audioRef?: React.RefObject<HTMLAudioElement> | null;
-  isLoadingAudio: boolean;
-  audioError: Error | null;
-  duration: number | null;
-  currentTime: number;
-  setCurrentTime: (newTime: number) => void;
-  playbackRate: number;
-  audioSrc: string;
-  setDuration: Dispatch<SetStateAction<number | null>>;
-  setPlaybackRate: (newTime: number) => void;
-  isPlaying: boolean;
-  mode: string;
-  setMode: (mode: string) => void;
-  handleButtonClick: () => void;
-  backend: "html5" | "webaudio";
-};
-
-const PlayFilled = ({ className }: { className: string }) => (
-  <div className={className}>
-    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
-      <path d="M5 3.87v16.26c0 .75.82 1.2 1.46.82l13.09-8.13c.64-.4.64-1.33 0-1.72L6.46 2.97A.998.998 0 0 0 5 3.87z" />
-    </svg>
-  </div>
-)
-const PauseFilled = ({ className }: { className: string }) => (
-  <div className={className}>
-    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
-      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-    </svg>
-  </div>
-)
-
-
-function AudioControls({
-  audioRef,
-  isLoadingAudio,
-  audioError,
-  duration,
-  currentTime,
-  setCurrentTime,
-  playbackRate,
-  isPlaying,
-  mode,
-  setMode,
-  handleButtonClick,
-  backend,
-}: AudioControlsProps) {
-  const [previousMode, setPreviousMode] = useState<string>("continue");
-  const [isLoopEnabled, setIsLoopEnabled] = useState(mode === "loop");
-
-  useEffect(() => {
-    setIsLoopEnabled(mode === "loop");
-  }, [mode]);
-
-  const toggleLoop = () => {
-    const newLoopState = !isLoopEnabled;
-    setIsLoopEnabled(newLoopState);
-
-    if (newLoopState) {
-      if (mode !== "loop") {
-        setPreviousMode(mode);
-      }
-      setMode("loop");
-    } else {
-      setMode(previousMode);
-    }
-  };
-
-  return (
-    <div className="flex w-full items-center justify-center gap-4">
-      <Button
-        variant="bare"
-        size="sm"
-        onClick={handleButtonClick}
-        disabled={isLoadingAudio || !!audioError}
-      >
-        {isPlaying ? (
-          <PauseFilled className="w-4 h-4" />
-        ) : (
-          <PlayFilled className="w-4 h-4 fill-white" />
-        )}
-      </Button>
-
-      <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
-        {currentTime ? formatTime(currentTime) : "0:00"}
-      </div>
-
-      <Progress
-        value={currentTime}
-        maxValue={duration || 0}
-        onChange={(value) => setCurrentTime(value)}
-      />
-
-      <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
-        {duration ? formatTime(duration) : "0:00"}
-      </div>
-
-      <div className="text-sm font-medium dark:text-neutral-400 select-none">
-        {`${playbackRate.toFixed(1)}x`}
-      </div>
-
-      <Button
-        variant="bare"
-        size="sm"
-        onClick={toggleLoop}
-        title={isLoopEnabled ? "Disable loop" : "Loop current segment"}
-        className={cn(
-          isLoopEnabled ? "text-blue-500" : "text-neutral-500 dark:text-neutral-400"
-        )}
-      >
-        <Repeat className="w-4 h-4" />
-      </Button>
-
-      <div className="text-xs text-neutral-400 dark:text-neutral-500 hidden md:block">
-        {backend === "webaudio" ? "WebAudio" : "HTML5 Audio"}
-      </div>
-    </div>
-  );
-}
-
-
-
+import { AudioEngine, createAudioEngine, AudioEngineEvents, useIsPlaying } from "@/lib/AudioEngine";
+import { AudioControls } from "@/lib/AudioControls";
+import { SettingsPanel } from "./SettingsPanel";
 
 export type PlaybackContextType = {
   duration: number | null;
@@ -156,6 +28,8 @@ export type PlaybackContextType = {
   setDuration: Dispatch<SetStateAction<number | null>>;
   setCurrentTime: (newTime: number) => void;
   setPlaybackRate: (newTime: number) => void;
+  togglePlayPause: () => void;
+  play: () => void;
   pause: () => void;
   isPlaying: boolean;
   audioSamples: Float32Array;
@@ -175,6 +49,8 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   setDuration: () => { },
   setCurrentTime: () => { },
   setPlaybackRate: () => { },
+  togglePlayPause: () => { },
+  play: () => { },
   pause: () => { },
   isPlaying: false,
   audioSamples: new Float32Array(0),
@@ -203,22 +79,7 @@ export type PlaybackProviderProps = {
   zoomEndTime?: number;
 };
 
-const CURRENT_TIME_UPDATE_INTERVAL = 10;
 
-// Utility function to decode audio
-async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array, sampleRate: number }> {
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-    sampleRate: desiredSampleRate,
-  });
-
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-  const samples = audioBuffer.getChannelData(0);
-
-  return {
-    samples,
-    sampleRate: audioContext.sampleRate
-  };
-}
 
 export function PlaybackProvider(props: PlaybackProviderProps) {
   const {
@@ -230,8 +91,6 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
     playheadModeInitial = "page",
     controls = true,
     backend = "html5",
-    zoomStartTime,
-    zoomEndTime,
   } = props;
 
   const settings = props.settings ? true : false;
@@ -240,21 +99,14 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
   const [playbackRate, _setPlaybackRate] = useState(playbackSpeedInitial);
   const [mode, setMode] = useState<string>(playheadModeInitial);
   const [previousMode, setPreviousMode] = useState<string>(playheadModeInitial);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [sampleRateState, setSampleRate] = useState<number>(requestedSampleRate);
-  const [loopCheckInterval, setLoopCheckInterval] = useState<number | null>(null);
-
-  // Reference to the current audio engine implementation
   const audioEngineRef = useRef<AudioEngine | null>(null);
-
-  // Track whether the engine has been initialized
+  const eventsRef = useRef<AudioEngineEvents>(new AudioEngineEvents());
   const [engineInitialized, setEngineInitialized] = useState(false);
-
-  // Determine which backend is actually in use
+  const isPlaying = useIsPlaying(audioEngineRef, eventsRef, engineInitialized);
   const [backendState, setBackendState] = useState<"html5" | "webaudio">(backend);
-
-  // Get zoom context
   const { startTime, endTime } = useZoom();
+
 
   // Fetch audio data for WebAudio
   const {
@@ -264,30 +116,22 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
   } = useSuspenseQuery({
     queryKey: ['audio', src, requestedSampleRate],
     queryFn: async () => {
-
-
       console.log("[PlaybackProvider] Fetching audio data from:", src);
-      try {
-        const response = await fetch(src);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        console.log("[PlaybackProvider] Audio fetched, decoding...");
-
-        const { samples, sampleRate } = await decodeAudioData(arrayBuffer, requestedSampleRate);
-        console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${samples.length}`);
-
-        setSampleRate(sampleRate);
-
-        return { samples, sampleRate };
-      } catch (error) {
-        console.error("[PlaybackProvider] Error fetching or decoding audio:", error);
+      const { data: response, error } = await tryCatch<Response>(fetch(src));
+      if (error) {
+        console.error("[PlaybackProvider] Error fetching audio:", error);
         throw error;
       }
+      const arrayBuffer = await response.arrayBuffer();
+      const { samples, sampleRate } = await decodeAudioData(arrayBuffer, requestedSampleRate);
+      console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${samples.length}`);
+      setSampleRate(sampleRate);
+      return { samples, sampleRate };
+
     },
   });
+
+
 
   // Initialize the audio engine
   useEffect(() => {
@@ -317,16 +161,41 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
         // Set up callbacks
         engine.onTimeUpdate(time => {
           _setCurrentTime(time);
+
+          // Implement custom loop in the time update callback
+          if (mode === "loop" && isPlaying && startTime < endTime && time >= endTime) {
+            console.log(`[PlaybackProvider] Loop boundary reached at ${time}s, seeking to ${startTime}s`);
+            engine.seek(startTime);
+          }
         });
 
         engine.onEnded(() => {
-          setIsPlaying(false);
+          console.log("[PlaybackProvider] Playback ended");
+          // Dispatch pause event when playback ends
+          if (eventsRef.current) {
+            eventsRef.current.dispatchEvent('pause', true);
+          }
         });
+
+        // Add listener for error events on HTML5 audio
+        if (backend === "html5") {
+          // Attempt to access the HTML5 audio element for more detailed error handling
+          const htmlEngine = engine as any;
+
+          if (htmlEngine.audio && htmlEngine.audio instanceof HTMLAudioElement) {
+            htmlEngine.audio.addEventListener('error', (e: ErrorEvent) => {
+              console.error("[PlaybackProvider] HTML5 audio error:", e);
+              // Dispatch pause event on error
+              if (eventsRef.current) {
+                eventsRef.current.dispatchEvent('pause', true);
+              }
+            });
+          }
+
+        }
 
         // Set initial parameters
         engine.setPlaybackRate(playbackRate);
-
-
         if (backend === "webaudio" && audioData?.samples && audioData.sampleRate && engine.loadAudioData) {
           console.log("[PlaybackProvider] Loading spectrogram audio data into WebAudio engine");
           engine.loadAudioData(audioData.samples, audioData.sampleRate)
@@ -378,162 +247,113 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
     // Update playback rate
     audioEngineRef.current.setPlaybackRate(playbackRate);
 
-    // Configure base loop settings - we'll handle the custom loop logic ourselves
+    // Configure loop in the audio engine
     if (mode === "loop") {
-      // Simple loop for whole file, the custom loop range will be handled by our interval
-      audioEngineRef.current.setLoopMode(false);
+      audioEngineRef.current.setLoopMode(false); // We're handling loops in our callback
     } else {
       audioEngineRef.current.setLoopMode(false);
     }
   }, [playbackRate, engineInitialized]);
 
-  // Set up keyboard event listeners
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle keyboard shortcuts if we're not in an input field
-      if (document.activeElement?.tagName === 'INPUT') return;
-
-      switch (e.code) {
-        case 'Space':
-          e.preventDefault();
-          togglePlayPause();
-          break;
-
-        case 'ArrowLeft':
-          e.preventDefault();
-          // Seek backward
-          const seekBackAmount = e.shiftKey ? 0.01 : 0.1; // Finer seek with shift key
-          const newBackTime = Math.max(0, currentTime - seekBackAmount);
-          setCurrentTime(newBackTime);
-          break;
-
-        case 'ArrowRight':
-          e.preventDefault();
-          // Seek forward
-          const seekFwdAmount = e.shiftKey ? 0.01 : 0.1; // Finer seek with shift key
-          const newFwdTime = Math.min(duration || 0, currentTime + seekFwdAmount);
-          setCurrentTime(newFwdTime);
-          break;
-
-        // Volume control
-        case 'ArrowUp':
-          e.preventDefault();
-          if (audioEngineRef.current) {
-            const currentStatus = audioEngineRef.current.getStatus();
-            audioEngineRef.current.setVolume(Math.min(1, currentStatus.volume + 0.1));
-          }
-          break;
-
-        case 'ArrowDown':
-          e.preventDefault();
-          if (audioEngineRef.current) {
-            const currentStatus = audioEngineRef.current.getStatus();
-            audioEngineRef.current.setVolume(Math.max(0, currentStatus.volume - 0.1));
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [duration, currentTime]);
-
-  // Implement custom loop functionality in the provider
-  useEffect(() => {
-    // Clean up existing interval
-    if (loopCheckInterval) {
-      clearInterval(loopCheckInterval);
-      setLoopCheckInterval(null);
-    }
-
-    // Only set up loop checking if:
-    // 1. We're in loop mode
-    // 2. We're playing 
-    // 3. We have valid start/end times
-    // 4. Engine is initialized
-    if (mode === "loop" && isPlaying && engineInitialized && startTime < endTime) {
-      console.log(`[PlaybackProvider] Setting up loop check interval: ${startTime}s to ${endTime}s`);
-
-      // Check at the same frequency as the audio engines
-      const intervalId = window.setInterval(() => {
-        if (!audioEngineRef.current) return;
-
-        const currentTime = audioEngineRef.current.getCurrentTime();
-
-        // Check if we need to loop
-        if (currentTime >= endTime) {
-          console.log(`[PlaybackProvider] Loop boundary reached at ${currentTime}s, seeking to ${startTime}s`);
-          audioEngineRef.current.seek(startTime);
-        }
-      }, AUDIO_ENGINE_UPDATE_INTERVAL_MS);
-
-      setLoopCheckInterval(intervalId);
-    }
-
-    // Clean up on unmount
-    return () => {
-      if (loopCheckInterval) {
-        clearInterval(loopCheckInterval);
-      }
-    };
-  }, [mode, isPlaying, startTime, endTime, engineInitialized]);
-
   // Unified functions that work with the current audio engine
   const setCurrentTime = useCallback((newTime: number) => {
+    console.log(`[PlaybackProvider] Setting current time to ${newTime}`);
+    _setCurrentTime(newTime);
     if (audioEngineRef.current && engineInitialized) {
       audioEngineRef.current.seek(newTime);
-      _setCurrentTime(newTime);
     }
-  }, [engineInitialized]);
-
+  }, [audioEngineRef, engineInitialized]);
   const setPlaybackRate = useCallback((newRate: number) => {
+    console.log(`[PlaybackProvider] Setting playback rate to ${newRate}`);
     _setPlaybackRate(newRate);
     if (audioEngineRef.current && engineInitialized) {
       audioEngineRef.current.setPlaybackRate(newRate);
     }
   }, [engineInitialized]);
 
-  const togglePlayPause = useCallback(() => {
-    if (!audioEngineRef.current || !engineInitialized) return;
-
-    if (isPlaying) {
-      audioEngineRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      const success = audioEngineRef.current.play();
-      if (success) {
-        setIsPlaying(true);
-      }
+  // Centralized play control function
+  const play = useCallback(() => {
+    if (!audioEngineRef.current || !engineInitialized) {
+      console.log("[PlaybackProvider] Cannot play: engine not initialized");
+      return;
     }
-  }, [isPlaying, engineInitialized]);
 
-  const pause = useCallback(() => {
-    if (audioEngineRef.current && engineInitialized) {
-      audioEngineRef.current.pause();
-      setIsPlaying(false);
+    // Only play if not already playing
+    if (!audioEngineRef.current.isAudioPlaying()) {
+      console.log("[PlaybackProvider] Play requested");
+      const success = audioEngineRef.current.play();
+      console.log("[PlaybackProvider] Play result:", success);
+
+      // Dispatch event if successful
+      if (success && eventsRef.current) {
+        eventsRef.current.dispatchEvent('play', true);
+      }
+    } else {
+      console.log("[PlaybackProvider] Already playing, ignoring play request");
     }
   }, [engineInitialized]);
 
-  // Handle loop mode changes
-  useEffect(() => {
-    if (!audioEngineRef.current || !engineInitialized) return;
+  // Centralized pause control function
+  const pause = useCallback(() => {
+    if (!audioEngineRef.current || !engineInitialized) {
+      console.log("[PlaybackProvider] Cannot pause: engine not initialized");
+      return;
+    }
 
-    if (mode === "loop") {
-      // Store previous mode when entering loop mode
-      if (previousMode === "loop") {
-        setPreviousMode("continue");
+    // Only pause if currently playing
+    if (audioEngineRef.current.isAudioPlaying()) {
+      console.log("[PlaybackProvider] Pause requested");
+      audioEngineRef.current.pause();
+
+      // Dispatch event
+      if (eventsRef.current) {
+        eventsRef.current.dispatchEvent('pause', true);
       }
     } else {
-      // We're not in loop mode, remember this mode
-      setPreviousMode(mode);
-
-      // Make sure to clean up any existing loop interval
-      if (loopCheckInterval) {
-        clearInterval(loopCheckInterval);
-        setLoopCheckInterval(null);
-      }
+      console.log("[PlaybackProvider] Already paused, ignoring pause request");
     }
-  }, [mode, previousMode, engineInitialized, loopCheckInterval]);
+  }, [engineInitialized]);
+
+
+  // Toggle play/pause directly using engine state
+  const togglePlayPause = useCallback(() => {
+    if (!audioEngineRef.current || !engineInitialized) {
+      console.log("[PlaybackProvider] Cannot toggle: engine not initialized");
+      return;
+    }
+
+    const engineIsPlaying = audioEngineRef.current.isAudioPlaying();
+    console.log(`[PlaybackProvider] Toggle play/pause. Engine state: ${engineIsPlaying ? 'playing' : 'paused'}`);
+
+    engineIsPlaying ? pause() : play();
+  }, [engineInitialized, play, pause]);
+
+
+  // Toggle loop mode
+  const toggleLoopMode = useCallback(() => {
+    const newLoopState = mode !== "loop";
+    if (newLoopState) {
+      // Entering loop mode
+      if (previousMode === "loop") {
+        setPreviousMode("continue");
+      } else {
+        setPreviousMode(mode);
+      }
+      setMode("loop");
+      console.log("[PlaybackProvider] Loop mode enabled");
+    } else {
+      // Exiting loop mode
+      console.log("[PlaybackProvider] Loop mode disabled");
+    }
+  }, [mode, previousMode]);
+
+  // hotkeys
+  useHotkeys('space', togglePlayPause, { preventDefault: true });
+  useHotkeys('left', () => setCurrentTime(currentTime - 0.1), { preventDefault: true });
+  useHotkeys('right', () => setCurrentTime(currentTime + 0.1), { preventDefault: true });
+  useHotkeys('up', () => audioEngineRef.current?.setVolume(audioEngineRef.current.getStatus().volume + 0.1), { preventDefault: true });
+  useHotkeys('down', () => audioEngineRef.current?.setVolume(audioEngineRef.current.getStatus().volume - 0.1), { preventDefault: true });
+
 
   return (
     <PlaybackContext.Provider
@@ -547,6 +367,8 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
         setDuration,
         setCurrentTime,
         setPlaybackRate,
+        togglePlayPause,
+        play,
         pause,
         isPlaying,
         audioSamples: audioData?.samples || new Float32Array(0),
@@ -558,109 +380,32 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
     >
       {children}
       <div className="w-full flex justify-center items-center gap-4">
-        <AudioControls
-          audioRef={null}
-          isLoadingAudio={isLoadingAudio || !engineInitialized}
-          audioError={audioError as Error | null}
-          duration={duration}
-          currentTime={currentTime}
-          setCurrentTime={setCurrentTime}
-          playbackRate={playbackRate}
-          audioSrc={src}
-          setDuration={setDuration}
-          setPlaybackRate={setPlaybackRate}
-          isPlaying={isPlaying}
-          mode={mode}
-          setMode={setMode}
-          handleButtonClick={togglePlayPause}
-          backend={backendState}
-        />
-
+        {controls &&
+          <AudioControls
+            isLoadingAudio={isLoadingAudio || !engineInitialized}
+            audioError={audioError as Error | null}
+            duration={duration}
+            currentTime={currentTime}
+            playbackRate={playbackRate}
+            isPlaying={isPlaying}
+            mode={mode}
+            backend={backendState}
+            onPlayPauseClick={togglePlayPause}
+            onSeek={setCurrentTime}
+            onLoopToggle={toggleLoopMode}
+          />
+        }
         {settings &&
-          settingsPanel({
-            playbackRate,
-            setPlaybackRate,
-            mode,
-            setMode
-          })
+          <SettingsPanel
+            playbackRate={playbackRate}
+            setPlaybackRate={setPlaybackRate}
+            mode={mode}
+            setMode={setMode}
+          />
         }
       </div>
     </PlaybackContext.Provider>
   );
-}
-
-function settingsPanel({
-  playbackRate,
-  setPlaybackRate,
-  mode,
-  setMode
-}: {
-  playbackRate: number;
-  setPlaybackRate: (rate: number) => void;
-  mode: string;
-  setMode: (mode: string) => void;
-}) {
-  const playbackRates = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-  const playheadModes = ["page", "stop", "loop", "continue", "scroll", "scrub"];
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Settings2Icon className="w-4 h-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64">
-        <div className="grid gap-4">
-
-
-          {/* Playback Speed Section */}
-          <div className="grid gap-2">
-            <Label className="font-medium leading-none">Playback Speed</Label>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {playbackRates.map((rate) => (
-                <Button
-                  key={rate}
-                  variant={playbackRate === rate ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setPlaybackRate(rate)}
-                >
-                  {rate}x
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Playhead Mode Section */}
-          <div className="border-t pt-3 space-y-2">
-            <Label className="font-medium leading-none">Playhead Mode</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {playheadModes.map((modeOption) => (
-                <Button
-                  key={modeOption}
-                  variant={mode === modeOption ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setMode(modeOption)}
-                  className="capitalize"
-                >
-                  {modeOption}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-// Helper function to format time as mm:ss
-function formatTime(time: number): string {
-  if (!time) return '0:00';
-
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60).toString().padStart(2, '0');
-  return `${minutes}:${seconds}`;
 }
 
 export default PlaybackProvider;
