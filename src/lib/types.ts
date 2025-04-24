@@ -33,3 +33,7 @@ export type Colormap =
     | "cdom"
     | "chlorophyll"
     | "density"
+
+export type PlayheadMode = "page" | "stop" | "loop" | "continue" | "scroll" | "scrub";
+
+export type Backend = "webaudio" | "html5";

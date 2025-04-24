@@ -1,15 +1,14 @@
 import SpectrogramGraphics from "./SpectrogramGraphics";
 import PlaybackProvider from "./PlaybackProvider";
 import ThemeProvider from "./ThemeProvider";
-
+import "./index.css";
 import { Annotations } from "./Annotation";
 import { QueryClient } from "@tanstack/react-query";
 import { Suspense } from "react";
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { Loader2 } from "lucide-react";
-import { Colormap } from "@/lib/types";
-import { Progress } from "@/components/ui/progress";
+import { Colormap, PlayheadMode, Backend } from "@/lib/types";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -43,7 +42,7 @@ interface SpectrogramPlayerProps {
   startTimeInitial?: number;
   endTimeInitial?: number;
   playbackSpeedInitial?: number;
-  playheadModeInitial?: string;
+  playheadModeInitial?: PlayheadMode;
   specHeight?: number;
   navHeight?: number;
   colormap?: Colormap;
@@ -51,21 +50,21 @@ interface SpectrogramPlayerProps {
   dark?: boolean;
   playheadColor?: string;
   playheadWidth?: number;
-  backend?: "webaudio" | "html5";
+  backend?: Backend;
 }
 function Loading() {
   return (
 
 
 
-    <div className="w-full h-full flex flex-col items-center justify-center" >
-      <div className="flex  items-center justify-center gap-2">
 
-        <Loader2 className="w-4 h-4 animate-spin" />
-        <p className="text-sm text-gray-500 animate-pulse">Loading Spectrogram</p>
+    <div className="flex  items-center justify-center gap-2">
 
-      </div>
+      <Loader2 className="w-4 h-4 animate-spin" />
+      <p className="text-sm text-gray-500 animate-pulse">Loading Spectrogram</p>
+
     </div>
+
   )
 }
 
@@ -103,43 +102,45 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
 
 
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <Suspense fallback={<Loading />}>
-          <PlaybackProvider
-            src={src}
-            settings={settings}
-            sampleRate={sampleRate}
-            currentTimeInitial={startTimeInitial}
-            playbackSpeedInitial={playbackSpeedInitial}
-            playheadModeInitial={playheadModeInitial}
-            controls={controls}
-            backend={backend}
-          >
-            <SpectrogramGraphics
-              spectrogramData={spectrogramData}
-              n_fft={n_fft}
-              win_length={win_length}
-              hop_length={hop_length}
-              f_min={f_min}
-              f_max={f_max}
-              n_mels={n_mels}
-              top_db={top_db}
-              annotations={annotations}
-              navigator={navigator}
-              startTimeInitial={startTimeInitial}
-              endTimeInitial={endTimeInitial}
-              navHeight={navHeight}
-              specHeight={specHeight}
-              colormap={colormap}
-              transparent={transparent}
-              playheadColor={playheadColor}
-              playheadWidth={playheadWidth}
-            />
-          </PlaybackProvider>
-        </Suspense>
-      </ThemeProvider>
-    </PersistQueryClientProvider>
+    <div className="w-full h-full flex flex-col items-center justify-center">
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          <Suspense fallback={<Loading />}>
+            <PlaybackProvider
+              src={src}
+              settings={settings}
+              sampleRate={sampleRate}
+              currentTimeInitial={startTimeInitial}
+              playbackSpeedInitial={playbackSpeedInitial}
+              playheadModeInitial={playheadModeInitial}
+              controls={controls}
+              backend={backend}
+            >
+              <SpectrogramGraphics
+                spectrogramData={spectrogramData}
+                n_fft={n_fft}
+                win_length={win_length}
+                hop_length={hop_length}
+                f_min={f_min}
+                f_max={f_max}
+                n_mels={n_mels}
+                top_db={top_db}
+                annotations={annotations}
+                navigator={navigator}
+                startTimeInitial={startTimeInitial}
+                endTimeInitial={endTimeInitial}
+                navHeight={navHeight}
+                specHeight={specHeight}
+                colormap={colormap}
+                transparent={transparent}
+                playheadColor={playheadColor}
+                playheadWidth={playheadWidth}
+              />
+            </PlaybackProvider>
+          </Suspense>
+        </ThemeProvider>
+      </PersistQueryClientProvider>
+    </div>
   );
 
 };
