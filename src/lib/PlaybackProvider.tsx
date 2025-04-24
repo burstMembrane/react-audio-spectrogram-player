@@ -193,7 +193,7 @@ export type PlaybackProviderProps = {
   isLooping?: boolean;
 };
 
-const CURRENT_TIME_UPDATE_INTERVAL = 1;
+const CURRENT_TIME_UPDATE_INTERVAL = 10;
 
 // Utility function to decode audio
 async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array, sampleRate: number }> {
@@ -394,17 +394,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   }, [audioRef.current]);
 
-  // Update the Button click handler
-  const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (audioRef.current.paused) {
-        audioRef.current.play().then(() => setIsPlaying(true));
-      } else {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-    }
-  };
+
 
   const onDurationChange = (
     e: React.SyntheticEvent<HTMLAudioElement, Event>,
@@ -463,6 +453,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
 
   // Add this to your event listeners in the PlaybackProvider component
   useEffect(() => {
+    if (!audioRef.current) return;
     const audio = audioRef.current;
     if (audio) {
       const handleEnded = () => {
