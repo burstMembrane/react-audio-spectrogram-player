@@ -17,23 +17,38 @@ function SpectrogramContent(props: SpectrogramContentProps) {
   const prevTimeRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
 
-  const { duration, currentTime, isPlaying } = usePlayback();
-  const { zoomedDuration } = useZoom();
-
+  const { duration, currentTime, mode } = usePlayback();
+  const { zoomedDuration, startTime, endTime } = useZoom();
 
   useEffect(() => {
-    setDisplayTime(currentTime);
+    // Detect when we're looping back to start in loop mode
+    const isLooping = mode === "loop" && prevTimeRef.current > (endTime - 0.2) && currentTime < startTime + 0.2;
+
+    if (isLooping) {
+      // Skip animation for loop transitions
+      setDisplayTime(currentTime);
+    } else {
+      // For normal playback, use smooth animation
+      setDisplayTime(currentTime);
+    }
+
     prevTimeRef.current = currentTime;
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [currentTime]);
+  }, [currentTime, startTime, endTime, mode]);
 
   if (!duration) {
     return null;
   }
+
+  // Calculate playhead width based on the zoom level
+  const adaptivePlayheadWidth = (playheadWidth || 0.001) * zoomedDuration;
+  // Cap the width to a reasonable value to avoid it becoming too thick when zoomed in a lot
+  const finalPlayheadWidth = Math.min(adaptivePlayheadWidth, 3);
 
   return (
     <>
@@ -49,7 +64,7 @@ function SpectrogramContent(props: SpectrogramContentProps) {
       <line
         ref={playheadRef}
         stroke={playheadColor || "red"}
-        strokeWidth={(playheadWidth || 0.0010) * zoomedDuration}
+        strokeWidth={finalPlayheadWidth}
         x1={displayTime}
         x2={displayTime}
         y1={0}

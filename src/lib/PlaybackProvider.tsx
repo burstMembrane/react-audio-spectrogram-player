@@ -8,7 +8,7 @@ import {
   Dispatch,
 } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Settings2Icon } from "lucide-react";
+import { Settings2Icon, Repeat } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +16,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Settings } from "lucide-react"
+import { cn } from "@/lib/utils";
 
 type AudioControlsProps = {
   audioRef: React.RefObject<HTMLAudioElement>;
@@ -32,6 +31,8 @@ type AudioControlsProps = {
   setDuration: Dispatch<SetStateAction<number | null>>;
   setPlaybackRate: (newTime: number) => void;
   isPlaying: boolean;
+  mode: string;
+  setMode: (mode: string) => void;
 };
 
 const PlayFilled = ({ className }: { className: string }) => (
@@ -59,9 +60,32 @@ function AudioControls({
   setCurrentTime,
   playbackRate,
   isPlaying,
+  mode,
+  setMode,
 }: AudioControlsProps) {
+  const [previousMode, setPreviousMode] = useState<string>("continue");
+  const [isLoopEnabled, setIsLoopEnabled] = useState(mode === "loop");
+
+  useEffect(() => {
+    setIsLoopEnabled(mode === "loop");
+  }, [mode]);
+
+  const toggleLoop = () => {
+    const newLoopState = !isLoopEnabled;
+    setIsLoopEnabled(newLoopState);
+
+    if (newLoopState) {
+      if (mode !== "loop") {
+        setPreviousMode(mode);
+      }
+      setMode("loop");
+    } else {
+      setMode(previousMode);
+    }
+  };
+
   return (
-    <div className="flex w-full items-center justify-center gap-4 ">
+    <div className="flex w-full items-center justify-center gap-4">
       <Button
         variant="bare"
         size="sm"
@@ -97,8 +121,20 @@ function AudioControls({
       <div className="text-sm font-medium dark:text-neutral-400 select-none">
         {`${playbackRate.toFixed(1)}x`}
       </div>
+
+      <Button
+        variant="bare"
+        size="sm"
+        onClick={toggleLoop}
+        title={isLoopEnabled ? "Disable loop" : "Loop current segment"}
+        className={cn(
+          isLoopEnabled ? "text-blue-500" : "text-neutral-500 dark:text-neutral-400"
+        )}
+      >
+        <Repeat className="w-4 h-4" />
+      </Button>
     </div>
-  )
+  );
 }
 
 
@@ -109,6 +145,7 @@ export type PlaybackContextType = {
   currentTime: number;
   playbackRate: number;
   mode: string;
+  previousMode: string;
   sampleRate: number;
   setDuration: Dispatch<SetStateAction<number | null>>;
   setCurrentTime: (newTime: number) => void;
@@ -126,6 +163,7 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   currentTime: 0,
   playbackRate: 1.0,
   mode: "page",
+  previousMode: "continue",
   sampleRate: 16000,
   setDuration: () => { },
   setCurrentTime: () => { },
@@ -136,6 +174,7 @@ export const PlaybackContext = createContext<PlaybackContextType>({
   audioSrc: "",
   isLoadingAudio: false,
   audioError: null,
+
 });
 
 export function usePlayback() {
@@ -146,10 +185,12 @@ export type PlaybackProviderProps = {
   children: JSX.Element | JSX.Element[];
   src: string;
   settings: boolean;
+  controls: boolean;
   sampleRate: number;
   currentTimeInitial?: number;
   playbackSpeedInitial?: number;
   playheadModeInitial?: string;
+  isLooping?: boolean;
 };
 
 const CURRENT_TIME_UPDATE_INTERVAL = 1;
@@ -177,6 +218,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     currentTimeInitial = 0,
     playbackSpeedInitial = 1.0,
     playheadModeInitial = "page",
+    controls = true,
   } = props;
 
   const settings = props.settings ? true : false;
@@ -184,6 +226,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
   const [currentTime, _setCurrentTime] = useState(currentTimeInitial);
   const [playbackRate, _setPlaybackRate] = useState(playbackSpeedInitial);
   const [mode, setMode] = useState<string>(playheadModeInitial);
+  const [previousMode, setPreviousMode] = useState<string>(playheadModeInitial);
   const audioRef = useRef<HTMLAudioElement>(null);
   const intervalRef = useRef<number>();
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
@@ -407,10 +450,53 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     }
   };
 
-  // Determine the number of columns needed for the mode grid based on the number of options
-  const playheadModes = ["page", "stop", "loop", "continue", "scroll", "scrub"];
-  const gridColumns = playheadModes.length > 5 ? 3 : (playheadModes.length > 2 ? 2 : 1);
-  const gridRows = Math.ceil(playheadModes.length / gridColumns);
+  // Add this function to the PlaybackProvider component
+  const handleLoop = () => {
+    // When looping, directly set the currentTime without waiting for events
+    if (audioRef.current && mode === "loop") {
+      // Directly manipulate the audio element
+      audioRef.current.currentTime = currentTime;
+      // Update the state synchronously
+      _setCurrentTime(currentTime);
+    }
+  };
+
+  // Add this to your event listeners in the PlaybackProvider component
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      const handleEnded = () => {
+        if (mode === "loop") {
+          // For loop mode, handle it with our optimized method
+          handleLoop();
+          // Immediately restart playback
+          audio.play().catch(err => console.error("Failed to restart audio:", err));
+        } else {
+          setIsPlaying(false);
+        }
+      };
+
+      audio.addEventListener('ended', handleEnded);
+
+      return () => {
+        audio.removeEventListener('ended', handleEnded);
+      };
+    }
+  }, [mode, currentTime]); // Add dependencies
+
+  // Monitor mode changes at the provider level
+  useEffect(() => {
+    if (mode === "loop") {
+      // We're entering loop mode
+      if (previousMode === "loop") {
+        // If previousMode is already loop, store the default mode
+        setPreviousMode("continue");
+      }
+    } else {
+      // We're not in loop mode, so remember this mode
+      setPreviousMode(mode);
+    }
+  }, [mode]);
 
   return (
     <PlaybackContext.Provider
@@ -419,6 +505,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         currentTime,
         playbackRate,
         mode,
+        previousMode,
         sampleRate: sampleRateState,
         setDuration,
         setCurrentTime,
@@ -441,25 +528,36 @@ function PlaybackProvider(props: PlaybackProviderProps) {
           onDurationChange={onDurationChange}
           onRateChange={onRateChange}
           controlsList="nodownload"
+
         >
           <source src={src} />
         </audio>
-        <AudioControls
-          audioRef={audioRef}
-          isLoadingAudio={isLoadingAudio}
-          audioError={audioError as Error | null}
-          duration={duration}
-          currentTime={currentTime}
-          setCurrentTime={setCurrentTime}
-          playbackRate={playbackRate}
-          audioSrc={src}
-          setDuration={setDuration}
-          setPlaybackRate={setPlaybackRate}
-          isPlaying={isPlaying}
-        />
+        {controls &&
+          <AudioControls
+
+            audioRef={audioRef}
+            isLoadingAudio={isLoadingAudio}
+            audioError={audioError as Error | null}
+            duration={duration}
+            currentTime={currentTime}
+            setCurrentTime={setCurrentTime}
+            playbackRate={playbackRate}
+            audioSrc={src}
+            setDuration={setDuration}
+            setPlaybackRate={setPlaybackRate}
+            isPlaying={isPlaying}
+            mode={mode}
+            setMode={setMode}
+          />
+        }
 
         {settings &&
-          settingsPanel({ playbackRate, setPlaybackRate, mode, setMode })
+          settingsPanel({
+            playbackRate,
+            setPlaybackRate,
+            mode,
+            setMode
+          })
         }
       </div>
 
@@ -490,13 +588,11 @@ function settingsPanel({
       </PopoverTrigger>
       <PopoverContent className="w-64">
         <div className="grid gap-4">
-          <div className="space-y-2">
-            <h4 className="font-medium leading-none">Playback Speed</h4>
-          </div>
+
 
           {/* Playback Speed Section */}
           <div className="grid gap-2">
-
+            <Label className="font-medium leading-none">Playback Speed</Label>
             <div className="flex flex-wrap gap-2 mt-1">
               {playbackRates.map((rate) => (
                 <Button
@@ -513,7 +609,7 @@ function settingsPanel({
 
           {/* Playhead Mode Section */}
           <div className="border-t pt-3 space-y-2">
-            <Label className="text-sm font-medium">Playhead Mode</Label>
+            <Label className="font-medium leading-none">Playhead Mode</Label>
             <div className="grid grid-cols-3 gap-2">
               {playheadModes.map((modeOption) => (
                 <Button

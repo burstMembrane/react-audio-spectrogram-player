@@ -41,12 +41,8 @@ function SpectrogramAnnotations(props: Annotations) {
 
   return (
     <Fragment>
-      <div
-        style={{
-          textAlign: "left",
-          fontFamily: "monospace",
-          color: annotationColor,
-        }}
+      <div className="text-left font-mono text-white"
+
       >
         {title}
       </div>

@@ -3,6 +3,7 @@ import { usePlayback } from "@/lib/PlaybackProvider";
 import { useTheme } from "@/lib/ThemeProvider";
 import { useZoom } from "@/lib/ZoomProvider";
 import { ZoomIn, ZoomOut } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SpectrogramNavigatorProps {
   children: JSX.Element;
@@ -30,10 +31,6 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
   const [dragEnd, setDragEnd] = useState<number | null>(null);
   const { theme } = useTheme();
 
-  // Add hover states for buttons
-  const [zoomInHover, setZoomInHover] = useState(false);
-  const [zoomOutHover, setZoomOutHover] = useState(false);
-  const [showControls, setShowControls] = useState(false);
 
   const draggingToZoom = !isZoomed && dragStart && dragEnd;
   const draggingToPan = isZoomed && dragStart;
@@ -87,67 +84,10 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
 
   const placeholder_svg = <svg width="100%" height={height} />;
 
-  // Define common styles for the icon buttons
-  const iconButtonStyle: React.CSSProperties = {
-    position: 'absolute',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '22px',
-    height: '22px',
-    cursor: 'pointer',
-    background: 'transparent',
-    border: 'none',
-    color: theme === 'dark' ? 'white' : 'black',
-    transition: 'all 0.2s ease',
-    zIndex: 10,
-    opacity: showControls ? 0.9 : 0.3,
-    padding: 0,
-  };
-
-  // Position buttons in a vertical column on the left
-  const zoomInButtonStyle = {
-    ...iconButtonStyle,
-    left: '8px',
-    top: '8px',
-    transform: zoomInHover ? 'scale(1.2)' : 'scale(1)',
-    opacity: zoomInHover ? 1 : (showControls ? 0.9 : 0.3),
-  };
-
-  const zoomOutButtonStyle = {
-    ...iconButtonStyle,
-    left: '8px',
-    top: '34px',
-    transform: zoomOutHover ? 'scale(1.2)' : 'scale(1)',
-    opacity: zoomOutHover ? 1 : (showControls ? 0.9 : 0.3),
-  };
-
-  const containerStyle: React.CSSProperties = {
-    position: 'relative',
-    display: "flex",
-    flexDirection: "row",
-    width: '100%',
-  };
-
-  // Add a control container for buttons
-  const controlsContainerStyle: React.CSSProperties = {
-    position: 'absolute',
-    left: '8px',
-    top: '8px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    zIndex: 10,
-    opacity: showControls ? 0.9 : 0.3,
-    transition: 'opacity 0.2s ease',
-  };
-
   return (
     <div
-      style={containerStyle}
-      onMouseEnter={() => setShowControls(true)}
-      onMouseLeave={() => setShowControls(false)}
+      className="relative flex w-full"
+
     >
       {duration ? (
         <svg
@@ -155,7 +95,7 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
           width="100%"
           height={height}
           viewBox={`0,0,${duration},100`}
-          cursor={isZoomed ? "grabbing" : "zoom-in"}
+
           preserveAspectRatio="none"
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
@@ -191,37 +131,34 @@ function SpectrogramNavigator(props: SpectrogramNavigatorProps) {
       )}
 
       {/* Controls container with buttons in a column */}
-      <div style={controlsContainerStyle}>
-        {/* Zoom In button (top) */}
+      <div className={cn(
+        "absolute left-2 top-2 flex flex-col gap-1 z-10 transition-opacity duration-200",
+      )}>
+        {/* Zoom In button */}
         <button
           onClick={zoomIn}
           title="Zoom In (+)"
           aria-label="Zoom In (press plus key)"
-          style={{
-            ...iconButtonStyle,
-            position: 'static',
-            transform: zoomInHover ? 'scale(1.2)' : 'scale(1)',
-            opacity: zoomInHover ? 1 : 0.9,
-          }}
-          onMouseEnter={() => setZoomInHover(true)}
-          onMouseLeave={() => setZoomInHover(false)}
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-md bg-transparent border-none",
+            "cursor-pointer transition-all duration-200 p-0",
+            theme === 'dark' ? "text-white" : "text-black",
+          )}
+
         >
           <ZoomIn size={14} strokeWidth={2} />
         </button>
 
-        {/* Zoom Out button (bottom) */}
+        {/* Zoom Out button */}
         <button
           onClick={zoomOut}
           title="Zoom Out (-)"
           aria-label="Zoom Out (press minus key)"
-          style={{
-            ...iconButtonStyle,
-            position: 'static',
-            transform: zoomOutHover ? 'scale(1.2)' : 'scale(1)',
-            opacity: zoomOutHover ? 1 : 0.9,
-          }}
-          onMouseEnter={() => setZoomOutHover(true)}
-          onMouseLeave={() => setZoomOutHover(false)}
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-md bg-transparent border-none",
+            "cursor-pointer transition-all duration-200 p-0",
+            theme === 'dark' ? "text-white" : "text-black",
+          )}
         >
           <ZoomOut size={14} strokeWidth={2} />
         </button>

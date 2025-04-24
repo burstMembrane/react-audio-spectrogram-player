@@ -38,6 +38,7 @@ interface SpectrogramPlayerProps {
   annotations?: Annotations[];
   navigator?: boolean;
   settings?: boolean;
+  controls?: boolean;
   startTimeInitial?: number;
   endTimeInitial?: number;
   playbackSpeedInitial?: number;
@@ -78,6 +79,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
     annotations = [],
     navigator = false,
     settings = false,
+    controls = true,
     startTimeInitial = undefined,
     endTimeInitial = undefined,
     playbackSpeedInitial = 1.0,
@@ -105,6 +107,7 @@ const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
             currentTimeInitial={startTimeInitial}
             playbackSpeedInitial={playbackSpeedInitial}
             playheadModeInitial={playheadModeInitial}
+            controls={controls}
           >
             <SpectrogramGraphics
               spectrogramData={spectrogramData}

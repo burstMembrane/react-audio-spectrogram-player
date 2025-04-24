@@ -10,7 +10,7 @@ import { usePlayback } from "@/lib/PlaybackProvider";
 import { useTheme } from "@/lib/ThemeProvider";
 import init, { mel_spectrogram_db } from "rust-melspec-wasm";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+
 
 // Performance logging function
 const log = (func: string, msg: string) => {
@@ -126,8 +126,6 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   } = props;
 
   const { audioSamples, sampleRate, audioSrc } = usePlayback();
-  const { theme } = useTheme();
-
   const hasAudioData = !!audioSamples && audioSamples.length > 0;
   const queryKey = useMemo(() => `spectrogram-${audioSrc}-${n_fft}-${win_length}-${audioSamples.length}-${hop_length}-${f_min}-${f_max}-${n_mels}-${top_db}-${colormap}`, [audioSrc, n_fft, win_length, audioSamples.length, hop_length, f_min, f_max, n_mels, top_db, colormap]);
 
@@ -196,51 +194,11 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
 
 
 
-  // Create a simple loading placeholder
-  const loadingContent = (
-    <div
-      style={{
-        width: "100%",
-        height: specHeight,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)',
-        color: theme === 'dark' ? 'white' : 'black',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-      }}
-    >
-      <Loader2 style={{ width: 20, height: 20 }} />
-      <span style={{ marginLeft: 10 }}>Computing spectrogram...</span>
-    </div>
-  );
 
-  const noAudioContent = (
-    <div
-      style={{
-        width: "100%",
-        height: specHeight,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
-        color: theme === 'dark' ? 'white' : 'black',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-      }}
-    >
-      <span>No audio data available</span>
-    </div>
-  );
-
-
-
-  if (!hasAudioData && !spectrogramData) {
-    return noAudioContent;
+  if (!hasAudioData && !spectrogramData || isLoading || !processedData?.dataURL) {
+    return null;
   }
 
-  if (isLoading || !processedData?.dataURL) {
-    return loadingContent;
-  }
 
 
   return (

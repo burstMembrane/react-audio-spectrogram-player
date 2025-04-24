@@ -108,18 +108,9 @@ function ZoomProvider(props: ZoomProviderProps) {
         setEndTime(newEndTime);
       }
     } else if (mode === "loop") {
-      if (currentTime >= endTime && currentTime <= endTime + 0.1) {
+      if (currentTime >= endTime || currentTime < startTime) {
+        // This is a more direct approach - if we're outside bounds, jump immediately
         setCurrentTime(startTime);
-      } else if (currentTime > endTime + 0.1) {
-        const newStartTime = endTime;
-        const newEndTime = endTime + zoomedDuration;
-        setStartTime(newStartTime);
-        setEndTime(newEndTime);
-      } else if (currentTime < startTime - 0.1) {
-        const newStartTime = startTime - zoomedDuration;
-        const newEndTime = startTime;
-        setStartTime(newStartTime);
-        setEndTime(newEndTime);
       }
     } else if (mode === "page") {
       if (currentTime >= endTime && currentTime <= endTime + 0.1) {

@@ -15,7 +15,7 @@ function App() {
         win_length={400}
         hop_length={160}
         f_min={0}
-        f_max={20000.0}
+        f_max={12000.0}
         n_mels={128}
         top_db={120}
         settings={true}
@@ -24,10 +24,10 @@ function App() {
         playheadModeInitial="scrub"
         playheadWidth={0.0010}
         playheadColor="yellow"
-        colormap="plasma"
-        specHeight={500}
+        colormap="inferno"
+        specHeight={600}
         navHeight={50}
-
+        controls={true}
         transparent={true}
         dark={true}
       />
