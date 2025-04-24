@@ -9,9 +9,7 @@ import {
   useCallback,
 } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-;
 import { decodeAudioData, tryCatch } from "@/lib/utils";
-
 import { useHotkeys } from "react-hotkeys-hook";
 import { useZoom } from "@/lib/ZoomProvider";
 import { AudioEngine, createAudioEngine, AudioEngineEvents, useIsPlaying } from "@/lib/AudioEngine";
@@ -124,9 +122,13 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
       }
       const arrayBuffer = await response.arrayBuffer();
       const { samples, sampleRate } = await decodeAudioData(arrayBuffer, requestedSampleRate);
-      console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${samples.length}`);
+
+      // handle stereo samples
+      const numChannels = Array.isArray(samples) ? samples.length : 1;
+      const length = Array.isArray(samples) ? samples[0].length : samples.length;
+      console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${length}, Channels: ${numChannels}`);
       setSampleRate(sampleRate);
-      return { samples, sampleRate };
+      return { samples, sampleRate, numChannels };
 
     },
   });
@@ -198,7 +200,9 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
         engine.setPlaybackRate(playbackRate);
         if (backend === "webaudio" && audioData?.samples && audioData.sampleRate && engine.loadAudioData) {
           console.log("[PlaybackProvider] Loading spectrogram audio data into WebAudio engine");
-          engine.loadAudioData(audioData.samples, audioData.sampleRate)
+          // handle stereo samples
+
+          engine.loadAudioData(audioData.samples, audioData.sampleRate, audioData.numChannels)
             .then(success => {
               if (success) {
                 // Update duration once audio is loaded

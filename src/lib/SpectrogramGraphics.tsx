@@ -1,4 +1,4 @@
-import { Children, useMemo } from "react";
+import { Children, useEffect, useMemo, useRef } from "react";
 import createColorMap from "colormap";
 import SpectrogramViewer from "@/lib/SpectrogramViewer";
 import SpectrogramNavigator from "@/lib/SpectrogramNavigator";
@@ -7,8 +7,8 @@ import ZoomProvider from "@/lib/ZoomProvider";
 import SpectrogramAnnotations from "@/lib/SpectogramAnnotations";
 import { Annotations } from "@/lib/Annotation";
 import { usePlayback } from "@/lib/PlaybackProvider";
-import init, { mel_spectrogram_db } from "rust-melspec-wasm";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { getWorkerManager } from "@/lib/worker-manager";
 
 
 // Performance logging function
@@ -17,7 +17,7 @@ const log = (func: string, msg: string) => {
 };
 // Only chunk if audio is large
 const SEGMENT_DURATION = 30; // 30 seconds threshold
-const MAX_CONCURRENT = 4; // Adjust based on hardware capabilities
+const MAX_CONCURRENT = Math.min(4, navigator.hardwareConcurrency || 4); // Adjust based on hardware capabilities
 interface SpectrogramGraphicsProps {
   spectrogramData?: number[][];
   n_fft?: number;
@@ -102,69 +102,10 @@ function dataURLToBlob(dataURL: string): Promise<Blob> {
 // Check if OffscreenCanvas is supported
 const isOffscreenCanvasSupported = typeof OffscreenCanvas !== 'undefined';
 
-// Enhanced createSpectrogram with OffscreenCanvas support
-const createSpectrogram = async (
-  spectrogramData: number[][] | undefined,
-  audioSamples: Float32Array,
-  sampleRate: number,
-  n_fft: number,
-  win_length: number,
-  hop_length: number,
-  f_min: number,
-  f_max: number,
-  n_mels: number,
-  top_db: number,
-  colormap: string,
-  transparent: boolean
-) => {
-  log("createSpectrogram", "Starting spectrogram data processing");
-  const queryStart = performance.now();
-
-  let spec: Float32Array[];
-
-  if (spectrogramData !== undefined) {
-    log("createSpectrogram", "Using provided spectrogramData");
-    spec = spectrogramData[0].map(
-      (_, colIndex) => new Float32Array(spectrogramData.map((row) => row[colIndex]))
-    );
-  }
-  else {
-    if (!audioSamples || audioSamples.length === 0) {
-      log("createSpectrogram", "No audio samples available");
-      return null;
-    }
-    try {
-      await init();
-
-      spec = mel_spectrogram_db(
-        sampleRate,
-        audioSamples,
-        n_fft,
-        win_length,
-        hop_length,
-        f_min,
-        f_max,
-        n_mels,
-        top_db
-      );
-      log("createSpectrogram", `Mel spectrogram computed successfully with ${spec.length} frames`);
-    } catch (error) {
-      log("createSpectrogram", `Error computing spectrogram: ${error}`);
-      console.error("Error computing spectrogram:", error);
-      throw error;
-    }
-  }
-
-  // Generate image data from spectrogram
-  const imageData = getImageData(spec, transparent, colormap);
-
-  let dataURL;
-  let width = imageData.width;
-  let height = imageData.height;
-
-  // Use OffscreenCanvas if available for better performance
+// Convert ImageData to dataURL using an in-memory canvas or OffscreenCanvas
+async function imageDataToDataURL(imageData: ImageData): Promise<string> {
   if (isOffscreenCanvasSupported) {
-    const offscreen = new OffscreenCanvas(width, height);
+    const offscreen = new OffscreenCanvas(imageData.width, imageData.height);
     const offCtx = offscreen.getContext('2d');
 
     if (!offCtx) {
@@ -172,20 +113,23 @@ const createSpectrogram = async (
     }
 
     offCtx.putImageData(imageData, 0, 0);
-
-    // Convert to blob and then to dataURL
     const blob = await offscreen.convertToBlob({ type: 'image/png' });
-    dataURL = await blobToDataURL(blob);
+    return await blobToDataURL(blob);
   } else {
-    // Fallback to regular canvas for browsers without OffscreenCanvas
-    dataURL = imageDataToDataURL(imageData);
+    // Fallback to regular canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error("Failed to get canvas context");
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL();
   }
-
-  const queryEnd = performance.now();
-  log("createSpectrogram", `Total processing time: ${(queryEnd - queryStart).toFixed(2)}ms`);
-
-  return { dataURL, width, height };
-};
+}
 
 function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
   const {
@@ -211,7 +155,17 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
 
   const { audioSamples, sampleRate, audioSrc } = usePlayback();
   const hasAudioData = !!audioSamples && audioSamples.length > 0;
-  const queryKey = useMemo(() => `spectrogram-${audioSrc}-${n_fft}-${win_length}-${audioSamples.length}-${hop_length}-${f_min}-${f_max}-${n_mels}-${top_db}-${colormap}`, [audioSrc, n_fft, win_length, audioSamples.length, hop_length, f_min, f_max, n_mels, top_db, colormap]);
+  const queryKey = useMemo(() => `spectrogram-${audioSrc}-${n_fft}-${win_length}-${audioSamples?.length ?? 0}-${hop_length}-${f_min}-${f_max}-${n_mels}-${top_db}-${colormap}`, [audioSrc, n_fft, win_length, audioSamples?.length, hop_length, f_min, f_max, n_mels, top_db, colormap]);
+
+  // Initialize worker manager
+  const workerManagerRef = useRef(getWorkerManager());
+
+  // Set up logging from workers
+  useEffect(() => {
+    workerManagerRef.current.setLogCallback(log);
+
+    // No cleanup needed - the worker manager is a singleton
+  }, []);
 
   const { data: processedData, isLoading } = useSuspenseQuery({
     queryKey: [queryKey],
@@ -221,32 +175,73 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         return null;
       }
 
+      let monoAudioSamples: Float32Array;
+      // if audioSamples is stereo, we want to process the mean of the two channels
+      if (Array.isArray(audioSamples) && audioSamples.length === 2) {
+        // For stereo, convert to mono by averaging the channels
+        const leftChannel = audioSamples[0];
+        const rightChannel = audioSamples[1];
+        const length = leftChannel.length;
 
+        monoAudioSamples = new Float32Array(length);
+        // mean
+        for (let i = 0; i < length; i++) {
+          monoAudioSamples[i] = (leftChannel[i] + rightChannel[i]) / 2;
+        }
+      } else {
+        // If it's already mono, just use as is
+        monoAudioSamples = audioSamples as Float32Array;
+      }
+
+      const isReady = await workerManagerRef.current.waitForReady();
+      log("queryFn", `Worker ready: ${isReady}`);
+      if (!isReady) {
+        log("queryFn", "Workers failed to initialize");
+        return null;
+      }
+
+      // Determine if we need chunking
       const samplesPerSecond = sampleRate;
-      const shouldChunk = audioSamples.length > SEGMENT_DURATION * samplesPerSecond;
+      const shouldChunk = monoAudioSamples.length > SEGMENT_DURATION * samplesPerSecond;
+
+      // Prepare parameters object for workers
+      const params = {
+        n_fft,
+        win_length,
+        hop_length,
+        f_min,
+        f_max,
+        n_mels,
+        top_db,
+        colormap,
+        transparent
+      };
 
       if (!shouldChunk) {
         // Process entire audio sample at once for small files
-        const result = await createSpectrogram(
-          spectrogramData,
-          audioSamples,
-          sampleRate,
-          n_fft,
-          win_length,
-          hop_length,
-          f_min,
-          f_max,
-          n_mels,
-          top_db,
-          colormap,
-          transparent
-        );
+        log("queryFn", "Processing audio in a single worker");
+        try {
+          // Create a copy of the audioSamples to prevent transfer issues
+          const samplesCopy = new Float32Array(monoAudioSamples);
 
-        if (!result?.dataURL) {
+          const result = await workerManagerRef.current.processChunk(
+            samplesCopy,
+            sampleRate,
+            params,
+            spectrogramData
+          );
+
+          if (!result?.imageData) {
+            return null;
+          }
+
+          // Convert image data to dataURL
+          const dataURL = await imageDataToDataURL(result.imageData);
+          return { dataURL };
+        } catch (error) {
+          log("queryFn", `Error processing audio: ${error}`);
           return null;
         }
-
-        return { dataURL: result.dataURL };
       }
 
       // For large files, process in chunks
@@ -254,13 +249,11 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
       const chunkSize = Math.floor(SEGMENT_DURATION * samplesPerSecond);
       const chunks = [];
 
-      for (let i = 0; i < audioSamples.length; i += chunkSize) {
-        chunks.push(audioSamples.slice(i, Math.min(i + chunkSize, audioSamples.length)));
+      for (let i = 0; i < monoAudioSamples.length; i += chunkSize) {
+        chunks.push(monoAudioSamples.slice(i, Math.min(i + chunkSize, monoAudioSamples.length)));
       }
 
       log("queryFn", `Split audio into ${chunks.length} chunks`);
-
-      // Process chunks with limited concurrency for better performance
 
       const chunkResults = [];
 
@@ -268,19 +261,14 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
         const batch = chunks.slice(i, i + MAX_CONCURRENT);
         const batchPromises = batch.map((chunk, idx) => {
           log("queryFn", `Processing chunk ${i + idx + 1}/${chunks.length}`);
-          return createSpectrogram(
-            undefined, // Don't use spectrogramData for chunks
-            chunk,
+
+          // Create a copy to prevent transfer issues with reused data
+          const chunkCopy = new Float32Array(chunk);
+
+          return workerManagerRef.current.processChunk(
+            chunkCopy,
             sampleRate,
-            n_fft,
-            win_length,
-            hop_length,
-            f_min,
-            f_max,
-            n_mels,
-            top_db,
-            colormap,
-            transparent
+            params
           );
         });
 
@@ -310,21 +298,19 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
             throw new Error("Failed to get offscreen canvas context for stitching");
           }
 
-          // Load and draw all images to the offscreen canvas
+          // Create temporary canvases for each chunk result
           let xOffset = 0;
-
-          // Process images sequentially to maintain order
           for (const result of chunkResults) {
-            // Create an image bitmap from the dataURL
-            const blob = await dataURLToBlob(result.dataURL);
-            const img = await createImageBitmap(blob);
+            const tempCanvas = new OffscreenCanvas(result.width, result.height);
+            const tempCtx = tempCanvas.getContext('2d');
 
-            // Draw to the offscreen canvas
-            offCtx.drawImage(img, xOffset, 0);
+            if (!tempCtx) {
+              throw new Error("Failed to get temp canvas context");
+            }
+
+            tempCtx.putImageData(result.imageData, 0, 0);
+            offCtx.drawImage(tempCanvas, xOffset, 0);
             xOffset += result.width;
-
-            // Release memory
-            img.close();
           }
 
           // Convert final stitched image to dataURL
@@ -340,79 +326,39 @@ function SpectrogramGraphics(props: SpectrogramGraphicsProps) {
       }
 
       // Fallback: stitch using regular canvas
-      return new Promise((resolve) => {
-        // Load all images first
-        const images = chunkResults.map(result => {
-          const img = new Image();
-          img.src = result.dataURL;
-          return img;
-        });
+      const canvas = document.createElement('canvas');
+      canvas.width = totalWidth;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
 
-        // Count loaded images
-        let loadedCount = 0;
-        images.forEach(img => {
-          img.onload = () => {
-            loadedCount++;
-            if (loadedCount === images.length) {
-              // All images loaded, we can stitch them
-              const canvas = document.createElement('canvas');
-              canvas.width = totalWidth;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error("Failed to get canvas context");
+      }
 
-              if (!ctx) {
-                throw new Error("Failed to get canvas context");
-              }
+      // Draw each image onto the canvas
+      let xOffset = 0;
+      for (const result of chunkResults) {
+        // Create a temp canvas for each chunk
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = result.width;
+        tempCanvas.height = result.height;
+        const tempCtx = tempCanvas.getContext('2d');
 
-              // Draw each image onto the canvas
-              let xOffset = 0;
-              for (const img of images) {
-                ctx.drawImage(img, xOffset, 0);
-                xOffset += img.width;
-              }
+        if (!tempCtx) {
+          throw new Error("Failed to get temp canvas context");
+        }
 
-              // Get the final stitched dataURL
-              const stitchedDataURL = canvas.toDataURL();
+        tempCtx.putImageData(result.imageData, 0, 0);
+        ctx.drawImage(tempCanvas, xOffset, 0);
+        xOffset += result.width;
+      }
 
-              log("queryFn", "Successfully stitched spectrogram chunks using regular Canvas");
+      // Get the final stitched dataURL
+      const stitchedDataURL = canvas.toDataURL();
 
-              resolve({ dataURL: stitchedDataURL });
-            }
-          };
+      log("queryFn", "Successfully stitched spectrogram chunks using regular Canvas");
 
-          // Handle loading errors
-          img.onerror = () => {
-            log("queryFn", "Error loading image for stitching");
-            loadedCount++;
-            if (loadedCount === images.length) {
-              // If all images have been processed (some with errors), try to stitch what we have
-              if (images.some(img => img.complete && img.naturalWidth !== 0)) {
-                log("queryFn", "Some images failed to load, stitching available ones");
-                // Similar stitching code as above
-                const canvas = document.createElement('canvas');
-                const validImages = images.filter(img => img.complete && img.naturalWidth !== 0);
-                const totalWidth = validImages.reduce((sum, img) => sum + img.naturalWidth, 0);
-                canvas.width = totalWidth > 0 ? totalWidth : 1;
-                canvas.height = validImages.length > 0 ? validImages[0].naturalHeight : 1;
-                const ctx = canvas.getContext('2d');
-
-                if (ctx && validImages.length > 0) {
-                  let xOffset = 0;
-                  for (const img of validImages) {
-                    ctx.drawImage(img, xOffset, 0);
-                    xOffset += img.naturalWidth;
-                  }
-                  resolve({ dataURL: canvas.toDataURL() });
-                } else {
-                  resolve(null);
-                }
-              } else {
-                resolve(null);
-              }
-            }
-          };
-        });
-      });
+      return { dataURL: stitchedDataURL };
     },
   });
 

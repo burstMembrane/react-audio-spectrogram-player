@@ -79,7 +79,7 @@ export function useIsPlaying(
  */
 export interface AudioEngine {
     initialize(): Promise<boolean>;
-    loadAudioData?(samples: Float32Array, sampleRate: number): Promise<boolean>;
+    loadAudioData?(samples: Float32Array | Float32Array[], sampleRate: number, numChannels: number): Promise<boolean>;
     play(startFrom?: number): boolean;
     pause(): void;
     seek(newTime: number): void;

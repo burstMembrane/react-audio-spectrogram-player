@@ -7,13 +7,24 @@ export function cn(...inputs: ClassValue[]) {
 
 
 // Utility function to decode audio
-export async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array, sampleRate: number }> {
+export async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array | Float32Array[], sampleRate: number }> {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
     sampleRate: desiredSampleRate,
   });
 
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-  const samples = audioBuffer.getChannelData(0);
+  let samples: Float32Array | Float32Array[];
+  // we want t o return stereo samples if available
+  if (audioBuffer.numberOfChannels === 2) {
+    console.log('[decodeAudioData] Stereo audio detected');
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = audioBuffer.getChannelData(1);
+    // return 2d array of left and right channels
+    samples = [leftChannel, rightChannel];
+  } else {
+    console.log('[decodeAudioData] Mono audio detected');
+    samples = audioBuffer.getChannelData(0);
+  }
 
   return {
     samples,

@@ -61,7 +61,7 @@ export class WebAudioEngine implements AudioEngine {
     /**
      * Load audio data into a buffer
      */
-    async loadAudioData(samples: Float32Array, sampleRate: number): Promise<boolean> {
+    async loadAudioData(samples: Float32Array | Float32Array[], sampleRate: number, numChannels: number): Promise<boolean> {
         if (!this.context) {
             const initialized = await this.initialize();
             if (!initialized) return false;
@@ -69,18 +69,47 @@ export class WebAudioEngine implements AudioEngine {
 
         try {
             console.log("[WebAudioEngine] Setting up audio buffer");
-            console.log(`[WebAudioEngine] Creating buffer with ${samples.length} samples at ${sampleRate}Hz`);
 
-            if (this.audioBuffer && this.audioBuffer.length === samples.length) {
-                console.log("[WebAudioEngine] Audio buffer already exists with same length, skipping recreation");
-                return true;
+            // Determine sample length and actual number of channels
+            let sampleLength: number;
+            let actualNumChannels: number;
+
+            if (Array.isArray(samples)) {
+                // For stereo/multi-channel audio
+                sampleLength = samples[0].length;
+                actualNumChannels = Math.min(samples.length, 2); // Limit to 2 channels (stereo)
+                console.log(`[WebAudioEngine] Processing ${actualNumChannels}-channel audio with ${sampleLength} samples`);
+            } else {
+                // For mono audio
+                sampleLength = samples.length;
+                actualNumChannels = 1;
+                console.log(`[WebAudioEngine] Processing mono audio with ${sampleLength} samples`);
             }
-            this.audioBuffer = this.context!.createBuffer(1, samples.length, sampleRate);
-            const channelData = this.audioBuffer.getChannelData(0);
-            for (let i = 0; i < samples.length; i++) {
-                channelData[i] = samples[i];
+
+            // Create the audio buffer
+            this.audioBuffer = this.context!.createBuffer(actualNumChannels, sampleLength, sampleRate);
+
+            // Fill the audio buffer with samples
+            if (Array.isArray(samples)) {
+                // Handle stereo/multi-channel audio
+                for (let i = 0; i < actualNumChannels; i++) {
+                    const channelData = this.audioBuffer.getChannelData(i);
+                    const sourceData = samples[i];
+                    channelData.set(sourceData);
+                }
+            } else {
+                // Handle mono audio - copy to left channel
+                const channelData = this.audioBuffer.getChannelData(0);
+                channelData.set(samples);
+
+                // If we want stereo output for mono input, duplicate to right channel
+                if (actualNumChannels > 1) {
+                    const rightChannelData = this.audioBuffer.getChannelData(1);
+                    rightChannelData.set(samples);
+                }
             }
-            console.log(`[WebAudioEngine] Audio buffer created successfully. Duration: ${this.audioBuffer.duration}s`);
+
+            console.log(`[WebAudioEngine] Audio buffer created successfully. Duration: ${this.audioBuffer.duration}s, Channels: ${actualNumChannels}`);
             return true;
         } catch (error) {
             console.error("[WebAudioEngine] Failed to setup WebAudio buffer:", error);
