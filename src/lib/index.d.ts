@@ -1,5 +1,5 @@
 import React from 'react';
-
+import { Colormap } from './types';
 export interface Annotations {
     data: (string | number)[][];
     title?: string;
@@ -27,7 +27,7 @@ export interface SpectrogramPlayerProps {
     playheadModeInitial?: string;
     specHeight?: number;
     navHeight?: number;
-    colormap?: string;
+    colormap?: Colormap;
     transparent?: boolean;
     dark?: boolean;
     playheadColor?: string;

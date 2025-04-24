@@ -2,15 +2,15 @@ import "./App.css";
 
 import SpectrogramPlayer from "@/lib/SpectrogramPlayer";
 
-import src from "./assets/wontgetfooled.mp3";
+import src from "./assets/audio_peggy.mp3";
 
 
 function App() {
   return (
-    <div className="max-w-screen-lg h-screen mx-auto mt-10 ">
+    <div className="mx-auto flex flex-col items-center max-w-screen-lg h-screen">
       <SpectrogramPlayer
         src={src}
-        sampleRate={44100}
+        sampleRate={16000}
         n_fft={2048}
         win_length={400}
         hop_length={160}
@@ -24,9 +24,10 @@ function App() {
         playheadModeInitial="scrub"
         playheadWidth={0.0010}
         playheadColor="yellow"
+        colormap="plasma"
         specHeight={500}
         navHeight={50}
-        colormap="inferno"
+
         transparent={true}
         dark={true}
       />

@@ -8,9 +8,18 @@ import {
   Dispatch,
 } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { PauseCircle, PlayCircle, Settings2Icon } from "lucide-react";
+import { Settings2Icon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Settings } from "lucide-react"
+
 type AudioControlsProps = {
   audioRef: React.RefObject<HTMLAudioElement>;
   isLoadingAudio: boolean;
@@ -25,6 +34,22 @@ type AudioControlsProps = {
   isPlaying: boolean;
 };
 
+const PlayFilled = ({ className }: { className: string }) => (
+  <div className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
+      <path d="M5 3.87v16.26c0 .75.82 1.2 1.46.82l13.09-8.13c.64-.4.64-1.33 0-1.72L6.46 2.97A.998.998 0 0 0 5 3.87z" />
+    </svg>
+  </div>
+)
+const PauseFilled = ({ className }: { className: string }) => (
+  <div className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-5 h-5">
+      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+    </svg>
+  </div>
+)
+
+
 function AudioControls({
   audioRef,
   isLoadingAudio,
@@ -36,62 +61,47 @@ function AudioControls({
   isPlaying,
 }: AudioControlsProps) {
   return (
-    <div className="w-full flex justify-center items-center gap-4">
-      {isLoadingAudio ? (
-        <div>
-          Loading audio...
-        </div>
-      ) : audioError ? (
-        <div>
-          Error loading audio
-        </div>
-      ) : (
-        <>
-          <Button
-            variant={"ghost"}
-            size={"icon"}
-            onClick={() => {
-              const audio = audioRef.current;
-              if (audio) {
-                if (audio.paused) {
-                  audio.play();
-                } else {
-                  audio.pause();
-                }
-              }
-            }}
-            disabled={isLoadingAudio || !!audioError}
-          >
-            {isPlaying ? (
-              <PauseCircle className="w-6 h-6" />
-            ) : (
-              <PlayCircle className="w-6 h-6" />
-            )}
-          </Button>
-          <div className="flex w-full items-center  space-between gap-4">
-            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
-              {currentTime ? `${formatTime(currentTime)}` : "0:00"}
-            </div>
-            {/* Progress bar with correct props */}
-            <Progress
-              className="h-2"
-              value={currentTime}
-              maxValue={duration || 0}
-              onChange={(value) => setCurrentTime(value)}
+    <div className="flex w-full items-center justify-center gap-4 ">
+      <Button
+        variant="bare"
+        size="sm"
+        onClick={() => {
+          const audio = audioRef.current;
+          if (audio) {
+            audio.paused ? audio.play() : audio.pause();
+          }
+        }}
+        disabled={isLoadingAudio || !!audioError}
+      >
+        {isPlaying ? (
+          <PauseFilled className="w-4 h-4" />
+        ) : (
+          <PlayFilled className="w-4 h-4 fill-white" />
+        )}
+      </Button>
 
-            />
-            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
-              {duration ? `${formatTime(duration)}` : "0:00"}
-            </div>
-          </div>
-          <div className="text-sm dark:text-neutral-400 select-none">
-            {`${playbackRate.toFixed(1)}x`}
-          </div>
-        </>
-      )}
+      <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
+        {currentTime ? formatTime(currentTime) : "0:00"}
+      </div>
+
+      <Progress
+        value={currentTime}
+        maxValue={duration || 0}
+        onChange={(value) => setCurrentTime(value)}
+      />
+
+      <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400 select-none">
+        {duration ? formatTime(duration) : "0:00"}
+      </div>
+
+      <div className="text-sm font-medium dark:text-neutral-400 select-none">
+        {`${playbackRate.toFixed(1)}x`}
+      </div>
     </div>
-  );
+  )
 }
+
+
 
 
 export type PlaybackContextType = {
@@ -142,7 +152,7 @@ export type PlaybackProviderProps = {
   playheadModeInitial?: string;
 };
 
-const CURRENT_TIME_UPDATE_INTERVAL = 10;
+const CURRENT_TIME_UPDATE_INTERVAL = 1;
 
 // Utility function to decode audio
 async function decodeAudioData(arrayBuffer: ArrayBuffer, desiredSampleRate: number): Promise<{ samples: Float32Array, sampleRate: number }> {
@@ -202,7 +212,6 @@ function PlaybackProvider(props: PlaybackProviderProps) {
         const { samples, sampleRate } = await decodeAudioData(arrayBuffer, requestedSampleRate);
         console.log(`[PlaybackProvider] Audio decoded successfully. Sample rate: ${sampleRate}, Samples: ${samples.length}`);
 
-        // Update the sample rate state
         setSampleRate(sampleRate);
 
         return { samples, sampleRate };
@@ -424,6 +433,7 @@ function PlaybackProvider(props: PlaybackProviderProps) {
     >
       {children}
       <div className="w-full flex justify-center items-center gap-4">
+
         <audio
           ref={audioRef}
           className="hidden"
@@ -448,22 +458,80 @@ function PlaybackProvider(props: PlaybackProviderProps) {
           isPlaying={isPlaying}
         />
 
-        {settings && (
-          <Button
-            variant={"ghost"}
-            size={"icon"}
-
-            onClick={() => {
-              setShowSettingsPanel(!showSettingsPanel);
-            }}
-          >
-            <Settings2Icon className="w-4 h-4" />
-          </Button>
-        )}
+        {settings &&
+          settingsPanel({ playbackRate, setPlaybackRate, mode, setMode })
+        }
       </div>
 
     </PlaybackContext.Provider >
   );
+}
+
+function settingsPanel({
+  playbackRate,
+  setPlaybackRate,
+  mode,
+  setMode
+}: {
+  playbackRate: number;
+  setPlaybackRate: (rate: number) => void;
+  mode: string;
+  setMode: (mode: string) => void;
+}) {
+  const playbackRates = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  const playheadModes = ["page", "stop", "loop", "continue", "scroll", "scrub"];
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Settings2Icon className="w-4 h-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64">
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <h4 className="font-medium leading-none">Playback Speed</h4>
+          </div>
+
+          {/* Playback Speed Section */}
+          <div className="grid gap-2">
+
+            <div className="flex flex-wrap gap-2 mt-1">
+              {playbackRates.map((rate) => (
+                <Button
+                  key={rate}
+                  variant={playbackRate === rate ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPlaybackRate(rate)}
+                >
+                  {rate}x
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Playhead Mode Section */}
+          <div className="border-t pt-3 space-y-2">
+            <Label className="text-sm font-medium">Playhead Mode</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {playheadModes.map((modeOption) => (
+                <Button
+                  key={modeOption}
+                  variant={mode === modeOption ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setMode(modeOption)}
+                  className="capitalize"
+                >
+                  {modeOption}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 // Helper function to format time as mm:ss

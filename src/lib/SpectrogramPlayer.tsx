@@ -8,6 +8,7 @@ import { Suspense } from "react";
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { Loader2 } from "lucide-react";
+import { Colormap } from "@/lib/types";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -43,7 +44,7 @@ interface SpectrogramPlayerProps {
   playheadModeInitial?: string;
   specHeight?: number;
   navHeight?: number;
-  colormap?: string;
+  colormap?: Colormap;
   transparent?: boolean;
   dark?: boolean;
   playheadColor?: string;
