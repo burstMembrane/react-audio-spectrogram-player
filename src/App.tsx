@@ -18,7 +18,7 @@ function App() {
         f_max={12000.0}
         n_mels={128}
         top_db={120}
-        settings={true}
+        settings={false}
         navigator={false}
         playbackSpeedInitial={1.0}
         playheadModeInitial="scrub"
@@ -27,10 +27,10 @@ function App() {
         colormap="inferno"
         specHeight={600}
         navHeight={50}
-        controls={true}
+        controls={false}
         transparent={true}
         dark={true}
-        backend="webaudio"
+        backend="html5"
       />
     </div>
   );

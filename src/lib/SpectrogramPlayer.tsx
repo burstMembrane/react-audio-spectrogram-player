@@ -9,6 +9,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { Loader2 } from "lucide-react";
 import { Colormap } from "@/lib/types";
+import { Progress } from "@/components/ui/progress";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -54,15 +55,18 @@ interface SpectrogramPlayerProps {
 }
 function Loading() {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center">
+
+
+
+    <div className="w-full h-full flex flex-col items-center justify-center" >
       <div className="flex  items-center justify-center gap-2">
 
         <Loader2 className="w-4 h-4 animate-spin" />
-        <p className="text-sm text-gray-500">Loading Spectrogram...</p>
+        <p className="text-sm text-gray-500 animate-pulse">Loading Spectrogram</p>
 
       </div>
     </div>
-  );
+  )
 }
 
 const SpectrogramPlayer = (props: SpectrogramPlayerProps) => {
