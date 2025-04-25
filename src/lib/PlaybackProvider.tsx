@@ -114,7 +114,7 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
   } = useSuspenseQuery({
     queryKey: ['audio', src, requestedSampleRate],
     queryFn: async () => {
-      console.log("[PlaybackProvider] Fetching audio data from:", src);
+
       const { data: response, error } = await tryCatch<Response>(fetch(src));
       if (error) {
         console.error("[PlaybackProvider] Error fetching audio:", error);
@@ -261,7 +261,6 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
 
   // Unified functions that work with the current audio engine
   const setCurrentTime = useCallback((newTime: number) => {
-    console.log(`[PlaybackProvider] Setting current time to ${newTime}`);
     _setCurrentTime(newTime);
     if (audioEngineRef.current && engineInitialized) {
       audioEngineRef.current.seek(newTime);

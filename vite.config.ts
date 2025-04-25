@@ -6,6 +6,7 @@ import cssInjectedByJsPlugin from "vite-plugin-css-injected-by-js";
 import wasm from "vite-plugin-wasm";
 // @ts-ignore
 import tailwindcss from "@tailwindcss/vite";
+import topLevelAwait from "vite-plugin-top-level-await";
 export default defineConfig({
   build: {
     minify: false,
@@ -22,10 +23,28 @@ export default defineConfig({
           react: "React",
           "react-dom": "ReactDOM",
         },
+
       },
     },
   },
-  plugins: [react(), dts(), cssInjectedByJsPlugin(), wasm(), tailwindcss()],
+  plugins: [
+    react(),
+    dts(),
+    cssInjectedByJsPlugin(),
+    wasm(),
+    tailwindcss(),
+    topLevelAwait(),
+  ],
+  worker: {
+    format: "es",
+    plugins: [wasm(), topLevelAwait()],
+    rollupOptions: {
+      output: {
+        entryFileNames: '[name].js',
+        chunkFileNames: 'workers/[name]-[hash].js',
+      }
+    },
+  },
   server: {
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
@@ -33,7 +52,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["rust-melspec-wasm"], // replace with your wasm package name
+    exclude: ["rust-melspec-wasm"],
   },
   resolve: {
     alias: {

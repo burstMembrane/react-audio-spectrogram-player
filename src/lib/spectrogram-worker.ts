@@ -1,35 +1,12 @@
 import init, { mel_spectrogram_db } from "rust-melspec-wasm";
-import { Colormap } from "@/lib/types";
+
 // Create a worker console.log wrapper
 const log = (func: string, msg: string) => {
     self.postMessage({ type: 'log', data: { func, msg } });
 };
 
-// Type for messages we receive
-interface WorkerMessage {
-    id: number;
-    type: string;
-    data: {
-        spectrogramData?: number[][];
-        audioSamples: Float32Array;
-        sampleRate: number;
-        params: {
-            n_fft: number;
-            win_length: number;
-            hop_length: number;
-            f_min: number;
-            f_max: number;
-            n_mels: number;
-            top_db: number;
-            colormap: Colormap;
-            transparent: boolean;
-        }
-    };
-}
 
-// Flag to track if WASM is initialized
 let wasmInitialized = false;
-
 // Helper functions (moved from main file)
 function max(arr: Float32Array[]) {
     let maxVal = -Infinity;
@@ -108,7 +85,8 @@ function getImageData(spec: Float32Array[], transparent: boolean, colormapName: 
     return imageData;
 }
 
-async function processSpectrogram(
+
+export async function processSpectrogram(
     spectrogramData: number[][] | undefined,
     audioSamples: Float32Array,
     sampleRate: number,
@@ -119,14 +97,12 @@ async function processSpectrogram(
 
     let spec: Float32Array[];
 
-    // Ensure WASM is initialized
     if (!wasmInitialized) {
         log("processSpectrogram", "Initializing WASM module");
         await init();
-        wasmInitialized = true;
+
     }
 
-    // Make sure colormap is loaded
     if (!colormap) {
         await loadColormap();
     }
@@ -136,89 +112,39 @@ async function processSpectrogram(
         spec = spectrogramData[0].map(
             (_, colIndex) => new Float32Array(spectrogramData.map((row) => row[colIndex]))
         );
-    }
-    else {
-        if (!audioSamples || audioSamples.length === 0) {
-            log("processSpectrogram", "No audio samples available");
-            return null;
-        }
-        try {
-            spec = mel_spectrogram_db(
-                sampleRate,
-                audioSamples,
-                params.n_fft,
-                params.win_length,
-                params.hop_length,
-                params.f_min,
-                params.f_max,
-                params.n_mels,
-                params.top_db
-            );
-            log("processSpectrogram", `Mel spectrogram computed successfully with ${spec.length} frames`);
-        } catch (error) {
-            log("processSpectrogram", `Error computing spectrogram: ${error}`);
-            throw error;
-        }
+        const imageData = getImageData(spec, params.transparent, params.colormap);
+        return {
+            width: imageData.width,
+            height: imageData.height,
+            imageData: imageData,
+        };
     }
 
+    if (!audioSamples || audioSamples.length === 0) {
+        log("processSpectrogram", "No audio samples available");
+        return null;
+    }
+
+    spec = mel_spectrogram_db(
+        sampleRate,
+        audioSamples,
+        params.n_fft,
+        params.win_length,
+        params.hop_length,
+        params.f_min,
+        params.f_max,
+        params.n_mels,
+        params.top_db
+    );
+    log("processSpectrogram", `Mel spectrogram computed successfully with ${spec.length} frames`);
     // Generate image data from spectrogram
     const imageData = getImageData(spec, params.transparent, params.colormap);
-
-    // Convert ImageData to ArrayBuffer for transfer back to main thread
-    const buffer = imageData.data.buffer;
-
     const queryEnd = performance.now();
     log("processSpectrogram", `Total processing time: ${(queryEnd - queryStart).toFixed(2)}ms`);
 
     return {
         width: imageData.width,
         height: imageData.height,
-        data: buffer,
+        imageData: imageData,
     };
 }
-
-// Set up message handler
-self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-    const { id, type, data } = event.data;
-    console.log('[worker] received message', id, type, data);
-    if (type === 'process_chunk') {
-        try {
-            const result = await processSpectrogram(
-                data.spectrogramData,
-                data.audioSamples,
-                data.sampleRate,
-                data.params
-            );
-
-            if (!result) {
-                self.postMessage({
-                    id,
-                    type: 'error',
-                    error: 'Failed to process spectrogram'
-                });
-                return;
-            }
-
-            // Create a message and use the transferList parameter correctly
-            const message = {
-                id,
-                type: 'chunk_complete',
-                data: result
-            };
-
-            // Pass the buffer as a transferable object in a format worker understands
-            // @ts-ignore - TypeScript doesn't recognize the worker context correctly
-            self.postMessage(message, [result.data]);
-        } catch (error) {
-            log("worker", `Error processing chunk: ${error}`);
-            self.postMessage({
-                id,
-                type: 'error',
-                error: error instanceof Error ? error.message : String(error)
-            });
-        }
-    }
-};
-
-// Signal that worker is ready
-self.postMessage({ type: 'ready' });

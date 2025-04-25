@@ -1,7 +1,7 @@
 import "@/lib/index.css";
 import SpectrogramPlayer from "@/lib/SpectrogramPlayer";
 
-import src from "./assets/because.mp3";
+import src from "./assets/audio_peggy.mp3";
 
 
 function App() {
@@ -25,7 +25,7 @@ function App() {
         playheadModeInitial="scrub"
         playheadWidth={0.0010}
         playheadColor="white"
-        colormap="plasma"
+
         specHeight={500}
         navHeight={50}
         controls={true}
