@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../../streamlit_spectrogram"
+		},
+		{
+			"path": "../.."
+		}
+	],
+	"settings": {}
+}

@@ -375,7 +375,7 @@ export function PlaybackProvider(props: PlaybackProviderProps) {
         play,
         pause,
         isPlaying,
-        audioSamples: audioData?.samples || new Float32Array(0),
+        audioSamples: Array.isArray(audioData?.samples) ? audioData.samples[0] : audioData?.samples || new Float32Array(0),
         audioSrc: src,
         isLoadingAudio: isLoadingAudio || !engineInitialized,
         audioError: audioError as Error | null,

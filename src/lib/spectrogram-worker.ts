@@ -1,6 +1,5 @@
-// Web worker for spectrogram computation
-import { nanoid } from "nanoid";
 import init, { mel_spectrogram_db } from "rust-melspec-wasm";
+import { Colormap } from "@/lib/types";
 // Create a worker console.log wrapper
 const log = (func: string, msg: string) => {
     self.postMessage({ type: 'log', data: { func, msg } });
@@ -22,7 +21,7 @@ interface WorkerMessage {
             f_max: number;
             n_mels: number;
             top_db: number;
-            colormap: string;
+            colormap: Colormap;
             transparent: boolean;
         }
     };
@@ -71,12 +70,24 @@ function getImageData(spec: Float32Array[], transparent: boolean, colormapName: 
         throw new Error('Colormap not loaded');
     }
 
-    const colors = colormap({
-        colormap: colormapName,
-        nshades: 256,
-        format: "rgba",
-        alpha: 255,
-    });
+    let colors;
+    try {
+        colors = colormap({
+            colormap: colormapName,
+            nshades: 256,
+            format: "rgba",
+            alpha: 255,
+        });
+    } catch (error) {
+        log('getImageData', `Error with colormap "${colormapName}": ${error}`);
+        // Fallback to a default colormap if the requested one doesn't exist
+        colors = colormap({
+            colormap: 'viridis', // Default fallback colormap
+            nshades: 256,
+            format: "rgba",
+            alpha: 255,
+        });
+    }
 
     const smax = max(spec);
     const smin = min(spec);

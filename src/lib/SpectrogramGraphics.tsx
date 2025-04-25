@@ -16,7 +16,7 @@ const log = (func: string, msg: string) => {
   console.log(`[SpectrogramGraphics] ${func}: ${msg}`);
 };
 // Only chunk if audio is large
-const SEGMENT_DURATION = 30; // 30 seconds threshold
+const SEGMENT_DURATION = 10; // 30 seconds threshold
 const MAX_CONCURRENT = Math.min(4, navigator.hardwareConcurrency || 4); // Adjust based on hardware capabilities
 interface SpectrogramGraphicsProps {
   spectrogramData?: number[][];
